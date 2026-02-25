@@ -7,5 +7,5 @@ pages_build_output_dir = ".vercel/output/static"
 [[d1_databases]]
 binding = "DB" # i.e. available in your Worker on env.DB
 database_name = "magic-ball-db"
-database_id = "00000000-0000-0000-0000-000000000000" # Replace with real ID when deployed
+database_id = "9346889d-f9db-4bee-8758-e0508b12ceb4" # Replace with real ID when deployed
 migrations_dir = "drizzle"
