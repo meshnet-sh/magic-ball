@@ -58,6 +58,7 @@ export default function IdeasPage() {
     const [text, setText] = useState("")
     const [isRecording, setIsRecording] = useState(false)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [authError, setAuthError] = useState("")
     const mediaRecorder = useRef<MediaRecorder | null>(null)
     const audioChunks = useRef<Blob[]>([])
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -69,7 +70,7 @@ export default function IdeasPage() {
             try {
                 const res = await fetch("/api/auth")
                 const data: any = await res.json()
-                if (data.authenticated) {
+                if (res.ok && data.authenticated) {
                     setIsAuthenticated(true)
                     sync()
                 } else {
@@ -77,6 +78,7 @@ export default function IdeasPage() {
                 }
             } catch (error) {
                 console.error("Auth check failed", error)
+                setAuthError("无法连接到云端服务器或数据库未初始化。请稍后再试。")
             }
         }
         init()
@@ -162,6 +164,15 @@ export default function IdeasPage() {
         }
         // reset input
         e.target.value = ''
+    }
+
+    if (authError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                <p className="text-destructive mb-4">{authError}</p>
+                <Button onClick={() => window.location.reload()}>重试</Button>
+            </div>
+        )
     }
 
     if (!isAuthenticated) return null; // Prevent flash of content before redirect

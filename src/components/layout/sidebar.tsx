@@ -12,7 +12,8 @@ import {
     Zap,
     ChevronsLeft,
     ChevronsRight,
-    Sparkles
+    Sparkles,
+    ShieldAlert
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
     { href: "/", label: "仪表盘", icon: Box },
     { href: "/tools/ideas", label: "闪念笔记", icon: Zap },
     { href: "/tools/calc", label: "计算器", icon: Calculator },
+    { href: "/admin", label: "后台管理", icon: ShieldAlert },
     { href: "/settings", label: "设置", icon: Settings },
 ]
 

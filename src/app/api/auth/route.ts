@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         } else {
             // SECURITY: Allowlist Registration
             // Only allow specific email to register for the first time
-            const ALLOWED_EMAIL = 'kevin@admin.com';
+            const ALLOWED_EMAIL = 'meshnet@163.com';
 
             if (email.toLowerCase() !== ALLOWED_EMAIL) {
                 return NextResponse.json({
