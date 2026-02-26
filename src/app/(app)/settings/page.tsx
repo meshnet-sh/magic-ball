@@ -14,10 +14,9 @@ import { Button } from "@/components/ui/button"
 type Tab = "admin" | "ai"
 
 const GEMINI_MODELS = [
-    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (快速)" },
-    { value: "gemini-2.0-pro", label: "Gemini 2.0 Pro (高质量)" },
-    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash (经济)" },
-    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro (稳定)" },
+    { value: "gemini-pro-latest", label: "Pro · 最前沿", desc: "始终指向最强推理能力模型" },
+    { value: "gemini-flash-latest", label: "Flash · 主力", desc: "平衡速度与性能，日常高频首选" },
+    { value: "gemini-flash-lite-latest", label: "Flash Lite · 极速", desc: "极致低延迟、低成本轻量模型" },
 ]
 
 export default function SettingsPage() {
@@ -27,7 +26,7 @@ export default function SettingsPage() {
 
     // AI Settings state
     const [geminiKey, setGeminiKey] = useState("")
-    const [geminiModel, setGeminiModel] = useState("gemini-2.0-flash")
+    const [geminiModel, setGeminiModel] = useState("gemini-flash-latest")
     const [showKey, setShowKey] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
@@ -149,8 +148,11 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-1 gap-2">
                                 {GEMINI_MODELS.map(m => (
                                     <button key={m.value} onClick={() => setGeminiModel(m.value)} className={cn("text-left px-4 py-3 rounded-xl border text-sm transition-all", geminiModel === m.value ? "bg-primary/10 border-primary/30 text-primary ring-1 ring-primary/20" : "bg-background border-border/50 hover:border-primary/20")}>
-                                        <span className="font-medium">{m.label}</span>
-                                        <span className="text-[10px] text-muted-foreground ml-2 font-mono">{m.value}</span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-semibold">{m.label}</span>
+                                            <span className="text-[10px] text-muted-foreground font-mono">{m.value}</span>
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">{m.desc}</p>
                                     </button>
                                 ))}
                             </div>
