@@ -24,7 +24,7 @@ export default function LoginPage() {
             })
 
             if (res.ok) {
-                router.push("/tools/ideas")
+                router.push("/")
                 router.refresh()
             } else {
                 const data: any = await res.json()
@@ -46,8 +46,8 @@ export default function LoginPage() {
                     <div className="p-4 bg-primary/10 rounded-2xl text-primary mb-2 ring-1 ring-primary/20">
                         <Shield size={32} />
                     </div>
-                    <h1 className="text-2xl font-bold tracking-tight">登录以同步闪念</h1>
-                    <p className="text-sm text-muted-foreground">您的数据将被端到端云同步隔离保护</p>
+                    <h1 className="text-2xl font-bold tracking-tight">登录 Magic Ball</h1>
+                    <p className="text-sm text-muted-foreground">您的全能工具箱，数据云端安全同步</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="flex flex-col gap-4">

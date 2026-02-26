@@ -43,3 +43,12 @@ export const pollResponses = sqliteTable("poll_responses", {
     fingerprint: text("fingerprint").notNull(), // browser fingerprint hash for anti-spam
     createdAt: integer("created_at").notNull(),
 });
+
+// ========== User Settings (AI Config etc.) ==========
+
+export const userSettings = sqliteTable("user_settings", {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id),
+    key: text("key").notNull(),     // e.g. "gemini_api_key", "gemini_model"
+    value: text("value").notNull(), // the setting value
+});
