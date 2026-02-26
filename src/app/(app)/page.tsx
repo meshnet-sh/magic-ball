@@ -32,7 +32,12 @@ function AICommandCenter() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
+  const silenceTimerRef = useRef<any>(null)
+  const analyserCleanupRef = useRef<(() => void) | null>(null)
+
   const stopRecording = () => {
+    if (silenceTimerRef.current) { clearInterval(silenceTimerRef.current); silenceTimerRef.current = null }
+    if (analyserCleanupRef.current) { analyserCleanupRef.current(); analyserCleanupRef.current = null }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop()
     }
@@ -53,12 +58,10 @@ function AICommandCenter() {
         setIsRecording(false)
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        // Convert to base64
         const reader = new FileReader()
         reader.readAsDataURL(audioBlob)
         reader.onloadend = () => {
           if (typeof reader.result === 'string') {
-            // reader.result = "data:audio/webm;base64,XXXXX"
             const base64 = reader.result.split(',')[1]
             handleSendAudio(base64)
           }
@@ -68,6 +71,40 @@ function AICommandCenter() {
       recorder.start()
       mediaRecorderRef.current = recorder
       setIsRecording(true)
+
+      // --- Silence detection via Web Audio API ---
+      const audioCtx = new AudioContext()
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 512
+      source.connect(analyser)
+      const dataArray = new Uint8Array(analyser.fftSize)
+
+      let silentSince: number | null = null
+      const SILENCE_THRESHOLD = 10   // volume level below which = silence
+      const SILENCE_DURATION = 2000  // 2s of silence → auto stop
+
+      silenceTimerRef.current = setInterval(() => {
+        analyser.getByteTimeDomainData(dataArray)
+        let maxDev = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          const d = Math.abs(dataArray[i] - 128)
+          if (d > maxDev) maxDev = d
+        }
+        if (maxDev < SILENCE_THRESHOLD) {
+          if (!silentSince) silentSince = Date.now()
+          else if (Date.now() - silentSince >= SILENCE_DURATION) {
+            stopRecording()
+          }
+        } else {
+          silentSince = null
+        }
+      }, 200)
+
+      analyserCleanupRef.current = () => {
+        source.disconnect()
+        audioCtx.close()
+      }
     } catch (err) {
       addAssistantMessage('无法访问麦克风，请检查权限设置。', 'error')
     }
