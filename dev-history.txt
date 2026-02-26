@@ -42,3 +42,30 @@
 - **安全防御与管理员权限系统**:
   - 添加了 **白名单注册机制 (Allowlist Registration)**。公网下默认拒绝新用户凭空建立账号，仅有管理员钦定邮箱 （`meshnet@163.com`）才能触发系统数据库的新账号注册创建。其他人尝试登录会提示“私有部署拒绝注册”。
   - 为了彻底掌控本系统，开发了专门的 **上帝视角管理员控制台 (`/admin`)**。它结合了专门的 `GET /api/admin` 路由，仅验证为管理员后，方可忽略数据隔离查看 D1 数据库内全局完整的用户、内容、多媒体与发送时间元数据。
+
+## 2026-02-25 ~ 2026-02-26 (部署之旅)
+- **Git 仓库初始化与 GitHub 推送**:
+  - 为项目初始化了 Git 仓库并推送至 GitHub (`meshnet-sh/magic-ball`)。
+  - 修复了 `master` vs `main` 分支名不一致导致的 `git push` 失败。
+
+- **Cloudflare Pages 部署 — 挫折与排障**:
+  - 首次尝试通过 GitHub 连接 Cloudflare Pages 进行部署。
+  - 失败1: `npm ci` 严格的对等依赖检查拒绝了 Next.js 16.x 与 `@cloudflare/next-on-pages` 的版本冲突。尝试了 `.npmrc` (legacy-peer-deps) 和 `package.json` overrides 均被 `npm ci` 忽略。
+  - 最终解决: 将 Next.js 从 `16.1.6` 降级至 `15.5.2` (next-on-pages 支持的最高版本)。
+  - 失败2: 部署成功但线上页面全白。排查发现远程 D1 数据库未初始化表结构，通过 `wrangler d1 execute --remote` 注入了 SQL Schema。
+  - 失败3: 修复表结构后仍然 500 错误。排查发现 `bcryptjs` (Node.js 原生库) 在 Cloudflare Edge Runtime 中直接导致 Worker 初始化崩溃。用 WebCrypto API (`crypto.subtle.digest SHA-256`) 徒手重写了密码哈希。
+  - 失败4: 所有 API 路由均返回 `Internal Server Error`。创建了零依赖 `/api/ping` 测试端点仍然崩溃，确认是 `@cloudflare/next-on-pages` 适配器与 Next.js 15 的根本性不兼容。
+
+- **架构迁移 — 从 next-on-pages 到 @opennextjs/cloudflare**:
+  - 彻底弃用了旧的 `@cloudflare/next-on-pages` 适配器。
+  - 安装并迁移到 Cloudflare 官方最新推荐的 `@opennextjs/cloudflare` 适配器。
+  - 核心变更:
+    - `wrangler.toml` 重写为 Workers 格式 (main=`.open-next/worker.js`, assets=`.open-next/assets`)
+    - 所有 API 路由移除 `export const runtime = 'edge'`
+    - `getRequestContext()` 全部替换为 `getCloudflareContext()` (来自 `@opennextjs/cloudflare`)
+    - 新增 `open-next.config.ts`, `.dev.vars`, `public/_headers`
+    - `next.config.ts` 加入 `initOpenNextCloudflareForDev()`
+  - 本地 `npx opennextjs-cloudflare build` 编译通过，Worker 打包成功。
+  - 通过 Cloudflare Dashboard 的 Workers Git 连接完成最终部署。
+
+- **部署结果**: 电脑端和手机端(需VPN)均可正常访问。闪念笔记登录、云端同步、管理员面板全部功能正常运行。
