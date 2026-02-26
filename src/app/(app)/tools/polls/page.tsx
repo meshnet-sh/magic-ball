@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
-import { zhCN } from "date-fns/locale"
+import { zhCN } from "date-fns/locale/zh-CN"
 import {
     Plus, Trash2, Copy, Check, ChevronDown, ChevronUp,
     ToggleLeft, ToggleRight, ClipboardList, MessageSquareText,

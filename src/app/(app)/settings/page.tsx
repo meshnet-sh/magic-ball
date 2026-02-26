@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
-import { zhCN } from "date-fns/locale"
+import { zhCN } from "date-fns/locale/zh-CN"
 import {
     Settings, ShieldAlert, Brain, Eye, EyeOff, Save, Check,
     Zap, Vote, Users, ChevronDown, ChevronUp

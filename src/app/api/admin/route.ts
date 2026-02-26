@@ -36,10 +36,17 @@ export async function GET(request: Request) {
             .leftJoin(users, eq(ideas.userId, users.id))
             .orderBy(desc(ideas.createdAt));
 
-        const formattedIdeas = allIdeas.map(idea => ({
-            ...idea,
-            tags: idea.tags ? JSON.parse(idea.tags) : []
-        }));
+        const formattedIdeas = allIdeas.map(idea => {
+            let tags: string[] = [];
+            try {
+                if (Array.isArray(idea.tags)) tags = idea.tags;
+                else if (typeof idea.tags === 'string' && idea.tags) {
+                    const parsed = JSON.parse(idea.tags);
+                    tags = Array.isArray(parsed) ? parsed : [];
+                }
+            } catch { tags = []; }
+            return { ...idea, tags };
+        });
 
         // Fetch all polls with response counts
         const allPolls = await db.select().from(polls).orderBy(desc(polls.createdAt));
