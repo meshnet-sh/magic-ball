@@ -9,8 +9,17 @@ export const runtime = 'edge';
 
 export async function POST(request: Request) {
     try {
-        const { env } = getRequestContext();
-        const db = getDb(env.DB);
+        const context = getRequestContext();
+        if (!context || !context.env) {
+            return NextResponse.json({ success: false, error: 'Cloudflare Runtime context/env is missing completely. Are you sure you are on Pages?' }, { status: 500 });
+        }
+
+        const dbBinding = context.env.DB;
+        if (!dbBinding) {
+            return NextResponse.json({ success: false, error: `Database binding 'DB' is undefined in current env. Existing keys: ${Object.keys(context.env).join(', ')}` }, { status: 500 });
+        }
+
+        const db = getDb(dbBinding);
         const { email, password } = (await request.json()) as any;
 
         if (!email || !password) {

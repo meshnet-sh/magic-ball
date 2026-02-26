@@ -17,8 +17,17 @@ export async function GET(request: Request) {
         const userId = getUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { env } = getRequestContext();
-        const db = getDb(env.DB);
+        const context = getRequestContext();
+        if (!context || !context.env) {
+            return NextResponse.json({ success: false, error: 'Context env missing' }, { status: 500 });
+        }
+
+        const dbBinding = context.env.DB;
+        if (!dbBinding) {
+            return NextResponse.json({ success: false, error: 'DB binding missing' }, { status: 500 });
+        }
+
+        const db = getDb(dbBinding);
 
         const userIdeas = await db.select().from(ideas).where(eq(ideas.userId, userId)).orderBy(desc(ideas.createdAt));
 
