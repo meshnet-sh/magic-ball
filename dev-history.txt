@@ -69,3 +69,17 @@
   - 通过 Cloudflare Dashboard 的 Workers Git 连接完成最终部署。
 
 - **部署结果**: 电脑端和手机端(需VPN)均可正常访问。闪念笔记登录、云端同步、管理员面板全部功能正常运行。
+
+## 2026-02-26 (第二插件开发)
+- **投票 & 意见收集器插件 (Vote & Opinion Collector)**:
+  - 替换了侧边栏的"计算器"占位入口，开发了完整的投票/意见收集工具。
+  - 数据库新增 3 张表: `polls`(投票主表)、`poll_options`(选项表)、`poll_responses`(响应表)。通过 `wrangler d1 execute --remote` 向线上数据库注入了 Schema。
+  - 后端 API 路线:
+    - `/api/polls` (GET/POST/DELETE/PATCH) — 需登录的投票 CRUD 管理
+    - `/api/polls/[id]` (GET/POST) — 公开投票端点，支持访问码验证与浏览器指纹防刷
+    - `/api/polls/[id]/results` (GET) — 仅投票创建者可查看的统计结果
+  - 前端页面:
+    - `/tools/polls` — 管理员投票管理页面（创建表单支持单选/多选/文本征集三种模式，附可选访问码、进度条结果统计、复制分享链接、开关/删除投票）
+    - `/vote/[id]` — 公开投票页面（访问码门禁 → 投票表单 → 感谢页面，全程匿名无需登录）
+  - 侧边栏图标改为 `Vote`（投票箱贴纸图标），指向 `/tools/polls`。
+
