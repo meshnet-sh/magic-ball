@@ -52,7 +52,14 @@ export const useIdeasStore = create<IdeasState>()(
                     if (res.ok) {
                         const data: any = await res.json()
                         if (data.success && data.data) {
-                            set({ ideas: data.data })
+                            // Normalize tags: API may return string or array
+                            const normalized = data.data.map((idea: any) => ({
+                                ...idea,
+                                tags: Array.isArray(idea.tags) ? idea.tags
+                                    : typeof idea.tags === 'string' ? (() => { try { const p = JSON.parse(idea.tags); return Array.isArray(p) ? p : []; } catch { return []; } })()
+                                        : []
+                            }))
+                            set({ ideas: normalized })
                         }
                     }
                 } catch (err) {
