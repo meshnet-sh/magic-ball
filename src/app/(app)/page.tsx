@@ -1,217 +1,257 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Vote, Zap, ArrowRight, Sparkles, Mic, Send, Square, Loader2 } from "lucide-react";
+import { Vote, Zap, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-function AICommandInput() {
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  text: string
+  command?: any
+  status?: 'pending' | 'success' | 'error'
+  errorDetail?: string
+}
+
+const MAX_RETRIES = 5
+
+function AICommandCenter() {
   const [input, setInput] = useState("")
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isListening, setIsListening] = useState(false)
-  const [result, setResult] = useState<{ type: 'success' | 'chat' | 'error', message: string } | null>(null)
   const recognitionRef = useRef<any>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages])
+
   const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      recognitionRef.current = null
-    }
+    if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null }
     setIsListening(false)
   }
 
   const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setResult({ type: 'error', message: '您的浏览器不支持语音识别' })
-      return
-    }
-
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'zh-CN'
-    recognition.interimResults = false
-    recognition.maxAlternatives = 1
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript
-      setInput(transcript)
-      setIsListening(false)
-      // Auto-submit after voice input
-      handleCommand(transcript)
-    }
-
-    recognition.onerror = () => {
-      setIsListening(false)
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-    setResult(null)
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) { addAssistantMessage('您的浏览器不支持语音识别', 'error'); return }
+    const r = new SR()
+    r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1
+    r.onresult = (e: any) => { const t = e.results[0][0].transcript; setInput(t); setIsListening(false); handleSend(t) }
+    r.onerror = () => setIsListening(false)
+    r.onend = () => setIsListening(false)
+    recognitionRef.current = r; r.start(); setIsListening(true)
   }
 
-  const handleCommand = async (text?: string) => {
-    const message = text || input
-    if (!message.trim() || isProcessing) return
+  const addAssistantMessage = (text: string, status: 'success' | 'error' | 'pending' = 'success', command?: any, errorDetail?: string) => {
+    setMessages(prev => [...prev, { role: 'assistant', text, command, status, errorDetail }])
+  }
 
+  const buildApiMessages = (history: ChatMessage[], newUserText?: string) => {
+    const apiMessages: { role: string; text: string }[] = []
+    for (const m of history) {
+      if (m.role === 'user') {
+        apiMessages.push({ role: 'user', text: m.text })
+      } else {
+        // Send the AI's command JSON or chat text
+        const t = m.command ? JSON.stringify(m.command) : m.text
+        apiMessages.push({ role: 'assistant', text: t })
+      }
+    }
+    if (newUserText) apiMessages.push({ role: 'user', text: newUserText })
+    return apiMessages
+  }
+
+  const callAI = async (apiMessages: { role: string; text: string }[]) => {
+    const res = await fetch("/api/ai/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: apiMessages })
+    })
+    const data = await res.json()
+    if (!data.success) throw new Error(data.error || '请求失败')
+    return data.command
+  }
+
+  const executeCommand = async (cmd: any): Promise<{ ok: boolean; message: string }> => {
+    try {
+      switch (cmd.action) {
+        case 'create_idea': {
+          const tags = cmd.tags || []
+          const content = tags.length > 0
+            ? cmd.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')
+            : cmd.content
+          const res = await fetch("/api/ideas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: crypto.randomUUID(), type: "text", content, tags: JSON.stringify(tags), createdAt: Date.now() })
+          })
+          if (res.ok) return { ok: true, message: `✅ 已记录闪念: "${cmd.content}"` }
+          const err = await res.json().catch(() => ({}))
+          return { ok: false, message: `创建笔记失败: ${(err as any).error || res.statusText}` }
+        }
+        case 'create_poll': {
+          const res = await fetch("/api/polls", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: cmd.title, description: cmd.description || null, type: cmd.type, options: cmd.options || [], accessCode: cmd.accessCode || null })
+          })
+          if (res.ok) return { ok: true, message: `✅ 已创建投票: "${cmd.title}"` }
+          const err = await res.json().catch(() => ({}))
+          return { ok: false, message: `创建投票失败: ${(err as any).error || res.statusText}` }
+        }
+        case 'navigate':
+          router.push(cmd.path)
+          return { ok: true, message: `🚀 正在跳转到 ${cmd.path}` }
+        case 'chat':
+          return { ok: true, message: cmd.message || '好的' }
+        default:
+          return { ok: false, message: `未知操作类型: ${cmd.action}` }
+      }
+    } catch (err: any) {
+      return { ok: false, message: `执行出错: ${err.message}` }
+    }
+  }
+
+  const handleSend = async (text?: string) => {
+    const userText = (text || input).trim()
+    if (!userText || isProcessing) return
+    setInput("")
+
+    const userMsg: ChatMessage = { role: 'user', text: userText }
+    const newHistory = [...messages, userMsg]
+    setMessages(newHistory)
     setIsProcessing(true)
-    setResult(null)
 
     try {
-      const res = await fetch("/api/ai/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      })
-      const data = await res.json()
+      let currentHistory = newHistory
+      let retryCount = 0
 
-      if (!data.success) {
-        setResult({ type: 'error', message: data.error || '请求失败' })
-        return
+      while (retryCount < MAX_RETRIES) {
+        // Call AI
+        const apiMessages = buildApiMessages(currentHistory)
+        const command = await callAI(apiMessages)
+
+        if (command.action === 'chat') {
+          // Chat doesn't need execution
+          const assistantMsg: ChatMessage = { role: 'assistant', text: command.message, command, status: 'success' }
+          setMessages(prev => [...prev, assistantMsg])
+          break
+        }
+
+        // Try to execute the command
+        const result = await executeCommand(command)
+
+        if (result.ok) {
+          const assistantMsg: ChatMessage = { role: 'assistant', text: result.message, command, status: 'success' }
+          setMessages(prev => [...prev, assistantMsg])
+          break
+        }
+
+        // Execution failed — feed error back to AI
+        retryCount++
+        const errorFeedback = `执行命令失败 (第${retryCount}次尝试)。错误信息: ${result.message}。你返回的命令是: ${JSON.stringify(command)}。请分析问题并调整命令重试。`
+
+        const failMsg: ChatMessage = { role: 'assistant', text: `⚠️ ${result.message}（第${retryCount}次尝试，正在重试...）`, command, status: 'error', errorDetail: result.message }
+        setMessages(prev => [...prev, failMsg])
+        currentHistory = [...currentHistory, failMsg, { role: 'user', text: errorFeedback }]
+
+        if (retryCount >= MAX_RETRIES) {
+          addAssistantMessage(`❌ 已尝试 ${MAX_RETRIES} 次仍然失败，请检查问题或手动操作。`, 'error')
+        }
       }
-
-      const cmd = data.command
-      await executeCommand(cmd)
     } catch (err: any) {
-      setResult({ type: 'error', message: '网络错误: ' + err.message })
+      addAssistantMessage(`❌ ${err.message}`, 'error')
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const executeCommand = async (cmd: any) => {
-    switch (cmd.action) {
-      case 'create_idea': {
-        const tags = cmd.tags || []
-        const content = tags.length > 0
-          ? cmd.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')
-          : cmd.content
-
-        const res = await fetch("/api/ideas", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: crypto.randomUUID(),
-            type: "text",
-            content,
-            tags: JSON.stringify(tags),
-            createdAt: Date.now()
-          })
-        })
-        if (res.ok) {
-          setResult({ type: 'success', message: `✅ 已记录闪念: "${cmd.content}"` })
-          setInput("")
-        } else {
-          setResult({ type: 'error', message: '记录失败，请检查网络' })
-        }
-        break
-      }
-
-      case 'create_poll': {
-        const res = await fetch("/api/polls", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: cmd.title,
-            type: cmd.type,
-            options: cmd.options || [],
-            accessCode: cmd.accessCode || null
-          })
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setResult({ type: 'success', message: `✅ 已创建投票: "${cmd.title}"` })
-          setInput("")
-        } else {
-          setResult({ type: 'error', message: '创建投票失败' })
-        }
-        break
-      }
-
-      case 'navigate': {
-        setResult({ type: 'success', message: `🚀 正在跳转...` })
-        setTimeout(() => router.push(cmd.path), 500)
-        break
-      }
-
-      case 'chat':
-      default: {
-        setResult({ type: 'chat', message: cmd.message || '我不确定该怎么做，请再试试。' })
-        break
-      }
-    }
+  const clearChat = () => {
+    setMessages([])
   }
 
   return (
-    <div className="relative">
-      <div className="p-5 bg-secondary/30 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="p-1.5 bg-primary/10 rounded-lg">
-            <Sparkles size={16} className="text-primary" />
-          </div>
-          <span className="text-sm font-semibold">AI 指令中心</span>
-          <span className="text-[10px] text-muted-foreground ml-auto">语音 / 文字皆可</span>
+    <div className="p-4 bg-secondary/30 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 bg-primary/10 rounded-lg">
+          <Sparkles size={16} className="text-primary" />
         </div>
-
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCommand()}
-              placeholder="试试说「记录一下：明天下午3点开会」或「帮我发个投票...」"
-              disabled={isProcessing || isListening}
-              className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 pr-10 disabled:opacity-50"
-            />
-            {isProcessing && (
-              <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-primary animate-spin" />
-            )}
-          </div>
-
-          {/* Voice button */}
-          <button
-            onClick={isListening ? stopListening : startListening}
-            disabled={isProcessing}
-            className={cn(
-              "p-3 rounded-xl border transition-all shrink-0",
-              isListening
-                ? "bg-red-500/10 border-red-500/30 text-red-400 ring-2 ring-red-500/20 animate-pulse"
-                : "bg-background border-border/50 text-muted-foreground hover:text-primary hover:border-primary/20"
-            )}
-          >
-            {isListening ? <Square size={16} /> : <Mic size={16} />}
+        <span className="text-sm font-semibold">AI 指令中心</span>
+        <span className="text-[10px] text-muted-foreground">多轮对话 · 语音/文字</span>
+        {messages.length > 0 && (
+          <button onClick={clearChat} className="ml-auto text-muted-foreground hover:text-foreground p-1" title="清空对话">
+            <Trash2 size={14} />
           </button>
-
-          {/* Send button */}
-          <Button
-            onClick={() => handleCommand()}
-            disabled={!input.trim() || isProcessing}
-            size="icon"
-            className="rounded-xl h-[46px] w-[46px] shrink-0"
-          >
-            <Send size={16} />
-          </Button>
-        </div>
-
-        {/* Result display */}
-        {result && (
-          <div className={cn(
-            "p-3 rounded-xl text-sm animate-in fade-in slide-in-from-bottom-1",
-            result.type === 'success' ? "bg-green-500/10 text-green-300 border border-green-500/20" :
-              result.type === 'error' ? "bg-red-500/10 text-red-300 border border-red-500/20" :
-                "bg-primary/5 text-foreground border border-primary/10"
-          )}>
-            {result.message}
-          </div>
         )}
+      </div>
+
+      {/* Chat history */}
+      {messages.length > 0 && (
+        <div ref={scrollRef} className="max-h-64 overflow-y-auto space-y-2 scrollbar-hide">
+          {messages.map((m, i) => (
+            <div key={i} className={cn("flex", m.role === 'user' ? "justify-end" : "justify-start")}>
+              <div className={cn(
+                "max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap",
+                m.role === 'user'
+                  ? "bg-primary text-primary-foreground rounded-tr-md"
+                  : m.status === 'error'
+                    ? "bg-red-500/10 text-red-300 border border-red-500/20 rounded-tl-md"
+                    : m.status === 'success' && m.command?.action !== 'chat'
+                      ? "bg-green-500/10 text-green-300 border border-green-500/20 rounded-tl-md"
+                      : "bg-secondary/50 text-foreground border border-border/30 rounded-tl-md"
+              )}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {isProcessing && (
+            <div className="flex justify-start">
+              <div className="px-3 py-2 rounded-2xl rounded-tl-md bg-secondary/50 border border-border/30">
+                <Loader2 size={14} className="animate-spin text-primary" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Input area */}
+      <div className="flex gap-2">
+        <div className="flex-1 relative">
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder={messages.length === 0 ? "试说「记一下明天开会」或「帮我发个投票...」" : "继续对话或补充说明..."}
+            disabled={isProcessing || isListening}
+            className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+          />
+        </div>
+        <button
+          onClick={isListening ? stopListening : startListening}
+          disabled={isProcessing}
+          className={cn(
+            "p-3 rounded-xl border transition-all shrink-0",
+            isListening
+              ? "bg-red-500/10 border-red-500/30 text-red-400 ring-2 ring-red-500/20 animate-pulse"
+              : "bg-background border-border/50 text-muted-foreground hover:text-primary hover:border-primary/20"
+          )}
+        >
+          {isListening ? <Square size={16} /> : <Mic size={16} />}
+        </button>
+        <Button
+          onClick={() => handleSend()}
+          disabled={!input.trim() || isProcessing}
+          size="icon"
+          className="rounded-xl h-[46px] w-[46px] shrink-0"
+        >
+          <Send size={16} />
+        </Button>
       </div>
     </div>
   )
@@ -240,7 +280,7 @@ export default function Home() {
       </div>
 
       {/* AI Command Center */}
-      {isAuthenticated && <AICommandInput />}
+      {isAuthenticated && <AICommandCenter />}
 
       {/* Tool cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 function getUserIdFromCookie(request: Request) {
     const cookieHeader = request.headers.get('cookie') || "";
@@ -10,33 +10,76 @@ function getUserIdFromCookie(request: Request) {
     return match ? match[1] : null;
 }
 
-const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过语音或文字向你发送指令，你需要理解意图并返回一个 JSON 命令。
+const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过语音或文字与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
 
-可用插件和操作:
+# 可用插件及其能力
 
-1. **闪念笔记** (ideas) - 快速记录文字想法
-   - 创建文字笔记: { "action": "create_idea", "content": "笔记内容", "tags": ["可选标签"] }
+## 1. 闪念笔记 (ideas)
+- **能力**: 创建文字笔记，支持标签
+- **命令格式**:
+\`\`\`json
+{
+  "action": "create_idea",
+  "content": "笔记的文字内容",
+  "tags": ["标签1", "标签2"]
+}
+\`\`\`
+- **示例输入**: "记一下明天下午3点和王总开会"
+- **示例输出**:
+\`\`\`json
+{"action": "create_idea", "content": "明天下午3点和王总开会", "tags": ["会议"]}
+\`\`\`
 
-2. **投票收集** (polls) - 创建投票或意见收集
-   - 创建单选投票: { "action": "create_poll", "title": "投票标题", "type": "single_choice", "options": ["选项1", "选项2", ...], "accessCode": null }
-   - 创建多选投票: { "action": "create_poll", "title": "投票标题", "type": "multi_choice", "options": ["选项1", "选项2", ...], "accessCode": null }
-   - 创建意见收集: { "action": "create_poll", "title": "征集标题", "type": "open_text", "options": [], "accessCode": null }
+## 2. 投票收集 (polls)
+- **能力**: 创建三种类型的投票 — 单选、多选、文本意见征集
+- **命令格式**:
+\`\`\`json
+{
+  "action": "create_poll",
+  "title": "投票标题",
+  "description": "可选的补充描述，没有就填 null",
+  "type": "single_choice | multi_choice | open_text",
+  "options": ["选项1", "选项2", "选项3"],
+  "accessCode": null
+}
+\`\`\`
+- type 只能是 "single_choice", "multi_choice", "open_text" 三选一
+- 当 type 为 "open_text" 时，options 必须为空数组 []
+- 当 type 为 "single_choice" 或 "multi_choice" 时，options 至少 2 项
+- accessCode 为 null 表示公开投票，设置字符串则需要输入访问码才能投票
+- **示例输入**: "帮我发个投票问大家周五团建去哪里，选项有密室逃脱、剧本杀和桌游"
+- **示例输出**:
+\`\`\`json
+{"action": "create_poll", "title": "周五团建去哪里？", "description": null, "type": "single_choice", "options": ["密室逃脱", "剧本杀", "桌游"], "accessCode": null}
+\`\`\`
 
-3. **页面导航**
-   - 打开闪念笔记: { "action": "navigate", "path": "/tools/ideas" }
-   - 打开投票管理: { "action": "navigate", "path": "/tools/polls" }
-   - 打开设置: { "action": "navigate", "path": "/settings" }
+## 3. 页面导航 (navigate)
+- **能力**: 跳转到工具箱内的页面
+- **命令格式**:
+\`\`\`json
+{"action": "navigate", "path": "/tools/ideas"}
+\`\`\`
+- 可用路径: "/tools/ideas" (闪念笔记), "/tools/polls" (投票管理), "/settings" (设置)
+- **示例输入**: "打开设置页面"
+- **示例输出**:
+\`\`\`json
+{"action": "navigate", "path": "/settings"}
+\`\`\`
 
-4. **通用对话** - 如果用户只是在闲聊或询问非插件相关的问题
-   - { "action": "chat", "message": "你的回复内容" }
+## 4. 通用对话 (chat)
+- **能力**: 回答与插件无关的问题、闲聊、提供建议
+- **命令格式**:
+\`\`\`json
+{"action": "chat", "message": "你的回复内容"}
+\`\`\`
 
-规则:
-- 始终只返回一个合法的 JSON 对象，不要添加任何其他格式或解释
-- 如果用户说"记一下..."或"记录..."或类似的话，用 create_idea
-- 如果用户说"帮我发个投票..."或"创建一个调查..."，用 create_poll
-- 如果意图不明确，用 chat 回复并建议用户可以做什么
-- 用中文回复 chat 消息
-- tags 中的标签不要带 # 号前缀`
+# 严格规则
+1. **始终且只返回一个合法 JSON 对象**，禁止在 JSON 外添加任何文字、解释或 markdown 标记
+2. 如果用户的意图涉及多个操作（如"记录并发投票"），选择最主要的那个操作
+3. 如果你不确定用户想做什么，用 chat 类型回复并**列出你能做的事情**
+4. tags 中的标签**不要**带 # 号前缀
+5. 如果前一次执行失败了，用户可能会把错误信息告诉你，请根据错误信息调整你的命令重试
+6. 用中文回复 chat 消息`;
 
 export async function POST(request: Request) {
     try {
@@ -65,11 +108,17 @@ export async function POST(request: Request) {
         }
 
         const body: any = await request.json();
-        const userMessage = body.message;
+        const messages: { role: string; text: string }[] = body.messages;
 
-        if (!userMessage) {
+        if (!messages || messages.length === 0) {
             return NextResponse.json({ success: false, error: '请输入指令' }, { status: 400 });
         }
+
+        // Convert to Gemini format
+        const contents = messages.map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.text }]
+        }));
 
         // Call Gemini API
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -78,9 +127,7 @@ export async function POST(request: Request) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [
-                    { role: 'user', parts: [{ text: userMessage }] }
-                ],
+                contents,
                 systemInstruction: {
                     parts: [{ text: SYSTEM_PROMPT }]
                 },
@@ -112,7 +159,6 @@ export async function POST(request: Request) {
             });
         }
 
-        // Parse JSON command
         try {
             const command = JSON.parse(responseText);
             return NextResponse.json({ success: true, command });
