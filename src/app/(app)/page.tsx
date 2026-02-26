@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calculator, Zap, ArrowRight } from "lucide-react";
+import { Vote, Zap, ArrowRight } from "lucide-react";
 
 import Link from "next/link";
 
@@ -19,7 +19,7 @@ export default function Home() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 mt-2">
-        {/* Placeholder for future tools */}
+        {/* Idea Logger */}
         <Link href="/tools/ideas" className="block outline-none border-none">
           <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -40,23 +40,26 @@ export default function Home() {
           </Card>
         </Link>
 
-        <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <CardHeader className="flex flex-col pb-2 relative z-10">
-            <div className="flex items-start justify-between">
-              <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                <Calculator className="h-6 w-6" />
+        {/* Vote & Opinion Collector */}
+        <Link href="/tools/polls" className="block outline-none border-none">
+          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <CardHeader className="flex flex-col pb-2 relative z-10">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
+                  <Vote className="h-6 w-6" />
+                </div>
+                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
               </div>
-              <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-            </div>
-            <CardTitle className="text-xl font-semibold mt-4">全能计算器</CardTitle>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-              专为开发者设计的数学计算环境，支持十六进制、二进制与单位极速换算。
-            </p>
-          </CardContent>
-        </Card>
+              <CardTitle className="text-xl font-semibold mt-4">投票收集</CardTitle>
+            </CardHeader>
+            <CardContent className="relative z-10">
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
+                创建单选、多选或意见征集投票，生成链接发给参与者即可匿名投票。支持访问码保护与防刷票机制。
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
 
       </div>
     </div>
