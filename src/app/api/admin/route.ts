@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { ideas, users } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
-
-export const runtime = 'edge';
 
 function getUserIdFromCookie(request: Request) {
     const cookieHeader = request.headers.get('cookie') || "";
@@ -17,12 +15,12 @@ export async function GET(request: Request) {
         const userId = getUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { env } = getRequestContext();
+        const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
         // Check if user is the admin
         const currentUser = await db.select().from(users).where(eq(users.id, userId)).get();
-        if (!currentUser || currentUser.email !== 'kevin@admin.com') {
+        if (!currentUser || currentUser.email !== 'meshnet@163.com') {
             return NextResponse.json({ success: false, error: 'Forbidden. Admin access required.' }, { status: 403 });
         }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -12,21 +12,10 @@ async function hashPassword(password: string): Promise<string> {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export const runtime = 'edge';
-
 export async function POST(request: Request) {
     try {
-        const context = getRequestContext();
-        if (!context || !context.env) {
-            return NextResponse.json({ success: false, error: 'Cloudflare Runtime context/env is missing completely. Are you sure you are on Pages?' }, { status: 500 });
-        }
-
-        const dbBinding = context.env.DB;
-        if (!dbBinding) {
-            return NextResponse.json({ success: false, error: `Database binding 'DB' is undefined in current env. Existing keys: ${Object.keys(context.env).join(', ')}` }, { status: 500 });
-        }
-
-        const db = getDb(dbBinding);
+        const { env } = await getCloudflareContext();
+        const db = getDb(env.DB);
         const { email, password } = (await request.json()) as any;
 
         if (!email || !password) {
@@ -42,8 +31,6 @@ export async function POST(request: Request) {
                 return NextResponse.json({ success: false, error: '密码错误' }, { status: 401 });
             }
         } else {
-            // SECURITY: Allowlist Registration
-            // Only allow specific email to register for the first time
             const ALLOWED_EMAIL = 'meshnet@163.com';
 
             if (email.toLowerCase() !== ALLOWED_EMAIL) {
@@ -53,7 +40,7 @@ export async function POST(request: Request) {
                 }, { status: 403 });
             }
 
-            const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+            const id = crypto.randomUUID();
             const passwordHash = await hashPassword(password);
 
             await db.insert(users).values({ id, email, passwordHash });
@@ -64,10 +51,10 @@ export async function POST(request: Request) {
 
         response.cookies.set('auth_session', String(user.id), {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: true,
             sameSite: 'lax',
             path: '/',
-            maxAge: 60 * 60 * 24 * 30 // 30 days
+            maxAge: 60 * 60 * 24 * 30
         });
 
         return response;

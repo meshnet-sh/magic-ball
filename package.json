@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -26,8 +28,8 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.16",
     "@cloudflare/workers-types": "^4.20260304.0",
+    "@opennextjs/cloudflare": "^1.17.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

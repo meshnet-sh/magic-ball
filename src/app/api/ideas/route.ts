@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { ideas } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
-
-export const runtime = 'edge';
 
 function getUserIdFromCookie(request: Request) {
     const cookieHeader = request.headers.get('cookie') || "";
@@ -17,17 +15,8 @@ export async function GET(request: Request) {
         const userId = getUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const context = getRequestContext();
-        if (!context || !context.env) {
-            return NextResponse.json({ success: false, error: 'Context env missing' }, { status: 500 });
-        }
-
-        const dbBinding = context.env.DB;
-        if (!dbBinding) {
-            return NextResponse.json({ success: false, error: 'DB binding missing' }, { status: 500 });
-        }
-
-        const db = getDb(dbBinding);
+        const { env } = await getCloudflareContext();
+        const db = getDb(env.DB);
 
         const userIdeas = await db.select().from(ideas).where(eq(ideas.userId, userId)).orderBy(desc(ideas.createdAt));
 
@@ -47,7 +36,7 @@ export async function POST(request: Request) {
         const userId = getUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { env } = getRequestContext();
+        const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
         const body: any = await request.json();
 
@@ -71,7 +60,7 @@ export async function DELETE(request: Request) {
         const userId = getUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { env } = getRequestContext();
+        const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
