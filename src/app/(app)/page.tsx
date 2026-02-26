@@ -137,28 +137,41 @@ function AICommandCenter() {
     })
     const data = await res.json()
     if (!data.success) throw new Error(data.error || '请求失败')
-    return data.command
+    return { transcript: data.transcript as string | null, actions: data.actions as any[] }
   }
 
   const handleSendAudio = async (base64Audio: string) => {
     if (isProcessing) return
     setIsProcessing(true)
 
-    // Show recording indicator in chat
-    const userMsg: ChatMessage = { role: 'user', text: '🎤 [语音输入]' }
+    // Placeholder — will be updated with transcript
+    const userMsg: ChatMessage = { role: 'user', text: '🎤 识别中...' }
     const newHistory = [...messages, userMsg]
     setMessages(newHistory)
 
     try {
       const apiMessages = buildApiMessages(newHistory)
-      // Send audio along with history — Gemini processes the audio directly
-      const command = await callAI(apiMessages, base64Audio)
+      const { transcript, actions } = await callAI(apiMessages, base64Audio)
 
-      if (command.action === 'chat') {
-        setMessages(prev => [...prev, { role: 'assistant', text: command.message, command, status: 'success' }])
-      } else {
-        const result = await executeCommand(command)
-        setMessages(prev => [...prev, { role: 'assistant', text: result.message, command, status: result.ok ? 'success' : 'error' }])
+      // Update user bubble with transcript
+      if (transcript) {
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - actions.length - 1 && m.text === '🎤 识别中...'
+            ? { ...m, text: `🎤 "${transcript}"` }
+            : m
+        ))
+        // Also update the history entry for future context
+        userMsg.text = transcript
+      }
+
+      // Execute all actions
+      for (const cmd of actions) {
+        if (cmd.action === 'chat') {
+          setMessages(prev => [...prev, { role: 'assistant', text: cmd.message, command: cmd, status: 'success' as const }])
+        } else {
+          const result = await executeCommand(cmd)
+          setMessages(prev => [...prev, { role: 'assistant', text: result.message, command: cmd, status: result.ok ? 'success' as const : 'error' as const }])
+        }
       }
     } catch (err: any) {
       addAssistantMessage(`❌ ${err.message}`, 'error')
@@ -222,33 +235,37 @@ function AICommandCenter() {
       let retryCount = 0
 
       while (retryCount < MAX_RETRIES) {
-        // Call AI
         const apiMessages = buildApiMessages(currentHistory)
-        const command = await callAI(apiMessages)
+        const { actions } = await callAI(apiMessages)
 
-        if (command.action === 'chat') {
-          // Chat doesn't need execution
-          const assistantMsg: ChatMessage = { role: 'assistant', text: command.message, command, status: 'success' }
-          setMessages(prev => [...prev, assistantMsg])
-          break
+        // Execute all actions sequentially
+        let allOk = true
+        let failedCmd: any = null
+        let failedMsg = ''
+
+        for (const cmd of actions) {
+          if (cmd.action === 'chat') {
+            setMessages(prev => [...prev, { role: 'assistant', text: cmd.message, command: cmd, status: 'success' as const }])
+          } else {
+            const result = await executeCommand(cmd)
+            setMessages(prev => [...prev, { role: 'assistant', text: result.message, command: cmd, status: result.ok ? 'success' as const : 'error' as const }])
+            if (!result.ok) {
+              allOk = false
+              failedCmd = cmd
+              failedMsg = result.message
+              break // stop executing remaining actions on failure
+            }
+          }
         }
 
-        // Try to execute the command
-        const result = await executeCommand(command)
+        if (allOk) break
 
-        if (result.ok) {
-          const assistantMsg: ChatMessage = { role: 'assistant', text: result.message, command, status: 'success' }
-          setMessages(prev => [...prev, assistantMsg])
-          break
-        }
-
-        // Execution failed — feed error back to AI
+        // Retry on failure
         retryCount++
-        const errorFeedback = `执行命令失败 (第${retryCount}次尝试)。错误信息: ${result.message}。你返回的命令是: ${JSON.stringify(command)}。请分析问题并调整命令重试。`
-
-        const failMsg: ChatMessage = { role: 'assistant', text: `⚠️ ${result.message}（第${retryCount}次尝试，正在重试...）`, command, status: 'error', errorDetail: result.message }
-        setMessages(prev => [...prev, failMsg])
-        currentHistory = [...currentHistory, failMsg, { role: 'user', text: errorFeedback }]
+        const errorFeedback = `执行命令失败 (第${retryCount}次尝试)。错误信息: ${failedMsg}。失败的命令是: ${JSON.stringify(failedCmd)}。请分析问题并调整命令重试。`
+        const failInfo: ChatMessage = { role: 'assistant', text: `⚠️ 正在重试 (${retryCount}/${MAX_RETRIES})...`, status: 'error' }
+        setMessages(prev => [...prev, failInfo])
+        currentHistory = [...currentHistory, failInfo, { role: 'user', text: errorFeedback }]
 
         if (retryCount >= MAX_RETRIES) {
           addAssistantMessage(`❌ 已尝试 ${MAX_RETRIES} 次仍然失败，请检查问题或手动操作。`, 'error')

@@ -73,9 +73,26 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 {"action": "chat", "message": "你的回复内容"}
 \`\`\`
 
+# 输出格式
+
+始终返回以下 JSON 结构（不要添加任何 JSON 之外的文字）:
+\`\`\`json
+{
+  "transcript": "如果用户通过语音输入，把你听到的原文转写在这里；如果是文字输入则填 null",
+  "actions": [
+    {"action": "create_idea", "content": "...", "tags": [...]},
+    {"action": "create_poll", ...}
+  ]
+}
+\`\`\`
+
+- **actions 是数组**: 如果用户一次说了多个任务，每个任务对应一个 action 对象，按顺序放入 actions 数组
+- 如果只有一个任务，actions 数组也只有一个元素
+- transcript 仅在处理语音时填写，文字输入时填 null
+
 # 严格规则
-1. **始终且只返回一个合法 JSON 对象**，禁止在 JSON 外添加任何文字、解释或 markdown 标记
-2. 如果用户的意图涉及多个操作（如"记录并发投票"），选择最主要的那个操作
+1. **始终且只返回上述格式的合法 JSON 对象**，禁止在 JSON 外添加任何文字、解释或 markdown 标记
+2. 如果用户一次说了多个任务，**全部拆分为独立的 action 放入 actions 数组**
 3. 如果你不确定用户想做什么，用 chat 类型回复并**列出你能做的事情**
 4. tags 中的标签**不要**带 # 号前缀
 5. 如果前一次执行失败了，用户可能会把错误信息告诉你，请根据错误信息调整你的命令重试
@@ -173,12 +190,26 @@ export async function POST(request: Request) {
         }
 
         try {
-            const command = JSON.parse(responseText);
-            return NextResponse.json({ success: true, command });
+            const parsed = JSON.parse(responseText);
+            // New format: { transcript, actions: [...] }
+            if (parsed.actions && Array.isArray(parsed.actions)) {
+                return NextResponse.json({
+                    success: true,
+                    transcript: parsed.transcript || null,
+                    actions: parsed.actions
+                });
+            }
+            // Backward compat: single command object
+            return NextResponse.json({
+                success: true,
+                transcript: parsed.transcript || null,
+                actions: [parsed]
+            });
         } catch {
             return NextResponse.json({
                 success: true,
-                command: { action: 'chat', message: responseText }
+                transcript: null,
+                actions: [{ action: 'chat', message: responseText }]
             });
         }
     } catch (error: any) {
