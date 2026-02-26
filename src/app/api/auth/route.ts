@@ -3,7 +3,14 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getDb } from '@/db/index';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import * as bcrypt from 'bcryptjs';
+
+async function hashPassword(password: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + "my_salt_123");
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export const runtime = 'edge';
 
@@ -29,7 +36,8 @@ export async function POST(request: Request) {
         let user = await db.select().from(users).where(eq(users.email, email)).get();
 
         if (user) {
-            const isValid = await bcrypt.compare(password, user.passwordHash);
+            const inputHash = await hashPassword(password);
+            const isValid = inputHash === user.passwordHash;
             if (!isValid) {
                 return NextResponse.json({ success: false, error: '密码错误' }, { status: 401 });
             }
@@ -46,7 +54,7 @@ export async function POST(request: Request) {
             }
 
             const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await hashPassword(password);
 
             await db.insert(users).values({ id, email, passwordHash });
             user = { id, email, passwordHash };
