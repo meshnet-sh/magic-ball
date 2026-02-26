@@ -119,3 +119,7 @@
   - **自动重试机制**: 命令执行失败时，自动将错误信息反馈给 AI 并请求调整命令重试，最多 5 次。
   - 新增清空对话按钮。
 
+- **语音输入修复 (弃用 Web Speech API → MediaRecorder + Gemini)**:
+  - 原方案使用 Chrome 的 Web Speech API，但其依赖 Google 服务器（国内不可达），导致语音输入始终失败。
+  - 新方案: 使用浏览器 MediaRecorder API 录制 webm 音频 → base64 编码 → 发送到 /api/ai/command → 作为 Gemini inlineData 音频部分发送，由 Gemini 直接理解语音内容并返回命令。
+  - 整条链路通过 Cloudflare Workers 代理，绕过了国内 Google 服务不可达的问题。

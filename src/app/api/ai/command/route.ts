@@ -109,16 +109,29 @@ export async function POST(request: Request) {
 
         const body: any = await request.json();
         const messages: { role: string; text: string }[] = body.messages;
+        const audioBase64: string | undefined = body.audio;
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ success: false, error: '请输入指令' }, { status: 400 });
         }
 
         // Convert to Gemini format
-        const contents = messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.text }]
-        }));
+        const contents = messages.map((m, i) => {
+            const parts: any[] = [{ text: m.text }];
+            // If this is the last user message and we have audio, add it as inline_data
+            if (audioBase64 && i === messages.length - 1 && m.role === 'user') {
+                parts.push({
+                    inlineData: {
+                        mimeType: 'audio/webm',
+                        data: audioBase64
+                    }
+                });
+            }
+            return {
+                role: m.role === 'user' ? 'user' : 'model',
+                parts
+            };
+        });
 
         // Call Gemini API
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;

@@ -22,8 +22,9 @@ function AICommandCenter() {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -31,20 +32,45 @@ function AICommandCenter() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  const stopListening = () => {
-    if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null }
-    setIsListening(false)
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+    }
   }
 
-  const startListening = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) { addAssistantMessage('您的浏览器不支持语音识别', 'error'); return }
-    const r = new SR()
-    r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1
-    r.onresult = (e: any) => { const t = e.results[0][0].transcript; setInput(t); setIsListening(false); handleSend(t) }
-    r.onerror = () => setIsListening(false)
-    r.onend = () => setIsListening(false)
-    recognitionRef.current = r; r.start(); setIsListening(true)
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setIsRecording(false)
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        // Convert to base64
+        const reader = new FileReader()
+        reader.readAsDataURL(audioBlob)
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            // reader.result = "data:audio/webm;base64,XXXXX"
+            const base64 = reader.result.split(',')[1]
+            handleSendAudio(base64)
+          }
+        }
+      }
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      setIsRecording(true)
+    } catch (err) {
+      addAssistantMessage('无法访问麦克风，请检查权限设置。', 'error')
+    }
   }
 
   const addAssistantMessage = (text: string, status: 'success' | 'error' | 'pending' = 'success', command?: any, errorDetail?: string) => {
@@ -66,15 +92,42 @@ function AICommandCenter() {
     return apiMessages
   }
 
-  const callAI = async (apiMessages: { role: string; text: string }[]) => {
+  const callAI = async (apiMessages: { role: string; text: string }[], audio?: string) => {
     const res = await fetch("/api/ai/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: apiMessages })
+      body: JSON.stringify({ messages: apiMessages, audio })
     })
     const data = await res.json()
     if (!data.success) throw new Error(data.error || '请求失败')
     return data.command
+  }
+
+  const handleSendAudio = async (base64Audio: string) => {
+    if (isProcessing) return
+    setIsProcessing(true)
+
+    // Show recording indicator in chat
+    const userMsg: ChatMessage = { role: 'user', text: '🎤 [语音输入]' }
+    const newHistory = [...messages, userMsg]
+    setMessages(newHistory)
+
+    try {
+      const apiMessages = buildApiMessages(newHistory)
+      // Send audio along with history — Gemini processes the audio directly
+      const command = await callAI(apiMessages, base64Audio)
+
+      if (command.action === 'chat') {
+        setMessages(prev => [...prev, { role: 'assistant', text: command.message, command, status: 'success' }])
+      } else {
+        const result = await executeCommand(command)
+        setMessages(prev => [...prev, { role: 'assistant', text: result.message, command, status: result.ok ? 'success' : 'error' }])
+      }
+    } catch (err: any) {
+      addAssistantMessage(`❌ ${err.message}`, 'error')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const executeCommand = async (cmd: any): Promise<{ ok: boolean; message: string }> => {
@@ -228,21 +281,21 @@ function AICommandCenter() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder={messages.length === 0 ? "试说「记一下明天开会」或「帮我发个投票...」" : "继续对话或补充说明..."}
-            disabled={isProcessing || isListening}
+            disabled={isProcessing || isRecording}
             className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
           />
         </div>
         <button
-          onClick={isListening ? stopListening : startListening}
+          onClick={isRecording ? stopRecording : startRecording}
           disabled={isProcessing}
           className={cn(
             "p-3 rounded-xl border transition-all shrink-0",
-            isListening
+            isRecording
               ? "bg-red-500/10 border-red-500/30 text-red-400 ring-2 ring-red-500/20 animate-pulse"
               : "bg-background border-border/50 text-muted-foreground hover:text-primary hover:border-primary/20"
           )}
         >
-          {isListening ? <Square size={16} /> : <Mic size={16} />}
+          {isRecording ? <Square size={16} /> : <Mic size={16} />}
         </button>
         <Button
           onClick={() => handleSend()}
