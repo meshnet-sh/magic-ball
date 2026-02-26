@@ -92,3 +92,19 @@
     - **AI 能力配置**: Gemini API Key 输入框（支持明文/密文切换）、模型选择器（2.0 Flash/Pro、1.5 Flash/Pro 四选一）、一键保存到云端。
     - **后台管理**: 数据总览（用户数/闪念数/投票数统计卡片），以及可折叠展开的三大板块（闪念笔记、投票活动、注册用户），覆盖全部插件数据。
   - 数据库新增 `user_settings` 表用于存储用户级配置（API Key、模型偏好等）。API 路由 `/api/settings` 支持 GET/POST 的 upsert 逻辑。
+
+- **AI 指令中心 (AI Command Center)**:
+  - Gemini 模型选择器改为 3 个动态别名: `gemini-pro-latest`(最前沿)、`gemini-flash-latest`(主力)、`gemini-flash-lite-latest`(极速)，始终自动跟随 Google 最新版本。
+  - 欢迎页面新增 **AI 指令中心** 组件，支持文字和语音两种输入方式:
+    - 文字输入: 直接在输入框中输入指令，回车发送
+    - 语音输入: 使用 Web Speech API 进行中文语音识别，识别完成后自动发送
+  - 后端新增 `/api/ai/command` 路由:
+    - 读取用户在设置中配置的 Gemini API Key 和模型偏好
+    - 使用包含全部插件上下文的 System Prompt 调用 Gemini API
+    - 返回结构化 JSON 命令（create_idea / create_poll / navigate / chat）
+  - 前端自动执行 AI 返回的命令:
+    - `create_idea`: 直接调用 `/api/ideas` 创建闪念笔记
+    - `create_poll`: 直接调用 `/api/polls` 创建投票
+    - `navigate`: 自动跳转到目标页面
+    - `chat`: 显示 AI 的对话回复
+
