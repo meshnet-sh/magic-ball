@@ -22,6 +22,7 @@ function AICommandCenter() {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const isLoadedRef = useRef(false)
   const [isRecording, setIsRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -31,6 +32,20 @@ function AICommandCenter() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (isLoadedRef.current) return
+    isLoadedRef.current = true
+    fetch('/api/messages').then(r => r.json()).then(data => {
+      if (data.success && data.data) {
+        setMessages(data.data.map((m: any) => ({
+          role: m.source === 'user' ? 'user' : 'assistant',
+          text: m.content || '',
+          status: 'success'
+        })))
+      }
+    }).catch(() => { })
+  }, [])
 
   const silenceTimerRef = useRef<any>(null)
   const analyserCleanupRef = useRef<(() => void) | null>(null)
@@ -112,6 +127,13 @@ function AICommandCenter() {
 
   const addAssistantMessage = (text: string, status: 'success' | 'error' | 'pending' = 'success', command?: any, errorDetail?: string) => {
     setMessages(prev => [...prev, { role: 'assistant', text, command, status, errorDetail }])
+    if (status === 'success' || status === 'error') {
+      fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, source: 'ai' })
+      }).catch(() => { })
+    }
   }
 
   const buildApiMessages = (history: ChatMessage[], newUserText?: string) => {
@@ -167,10 +189,10 @@ function AICommandCenter() {
       // Execute all actions
       for (const cmd of actions) {
         if (cmd.action === 'chat') {
-          setMessages(prev => [...prev, { role: 'assistant', text: cmd.message, command: cmd, status: 'success' as const }])
+          addAssistantMessage(cmd.message, 'success', cmd)
         } else {
           const result = await executeCommand(cmd)
-          setMessages(prev => [...prev, { role: 'assistant', text: result.message, command: cmd, status: result.ok ? 'success' as const : 'error' as const }])
+          addAssistantMessage(result.message, result.ok ? 'success' : 'error', cmd)
         }
       }
     } catch (err: any) {
@@ -261,6 +283,13 @@ function AICommandCenter() {
     setMessages(newHistory)
     setIsProcessing(true)
 
+    // Save user message to DB
+    fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: userText, source: 'user' })
+    }).catch(() => { })
+
     try {
       let currentHistory = newHistory
       let retryCount = 0
@@ -276,10 +305,10 @@ function AICommandCenter() {
 
         for (const cmd of actions) {
           if (cmd.action === 'chat') {
-            setMessages(prev => [...prev, { role: 'assistant', text: cmd.message, command: cmd, status: 'success' as const }])
+            addAssistantMessage(cmd.message, 'success', cmd)
           } else {
             const result = await executeCommand(cmd)
-            setMessages(prev => [...prev, { role: 'assistant', text: result.message, command: cmd, status: result.ok ? 'success' as const : 'error' as const }])
+            addAssistantMessage(result.message, result.ok ? 'success' : 'error', cmd)
             if (!result.ok) {
               allOk = false
               failedCmd = cmd

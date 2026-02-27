@@ -219,3 +219,14 @@
   - 用户反馈AI在创建调度任务时经常自作主张，且通过网页端触发的调度任务没有推送到飞书。
   - 修复1(二次确认): 更新了 Web AI 命令和 飞书 webhook 中 `ai_agent` 的提示词，强制要求它在执行 `schedule_task` 之前必须先使用 `chat` 向用户确认具体的触发时间和细节。
   - 修复2(网页端触发推送): 重构了 `src/app/api/scheduler/trigger/route.ts` 客户端轮询执行逻辑，统一将其底层调用替换为 `executeAction`，并在执行完毕后像 Cron worker 一样把结果汇总推送到用户绑定的 Feishu Open ID。
+
+- **Web端消息记录持久化与飞书同步**:
+  - 用户反馈 Web 端的消息弹框过快消失且无法回顾，并且希望记录能同步给飞书。
+  - 数据库演进: 增加了 `messages` 表用于持久化所有的系统/AI消息和用户输入。
+  - 接口扩展: 新增了 `src/app/api/messages/route.ts` 用于前后端同步，且如果在后端保存消息时检测到了AI/System发出的内容，会自动向用户的 Feishu Open ID 发送无感知的同步推送。
+  - UI改进: Web端的聊天记录会在页面加载时自动从 `/api/messages` 拉取从而实现历史驻留。
+
+- **飞书机器人重复回复 Bug 修复**:
+  - 根因分析: Cloudflare Worker 等 Serverless 环境在处理 webhook 时，如果AI请求耗时超过3秒，飞书会自动重试触发机制，导致同一个事件被多次处理并响应。之前的内存 `Set` 方案由于跨实例隔离，起不到去重作用。
+  - 数据库演进: 新增了 `feishu_events` 表并通过 event_id 做主键。
+  - 修复方案: 在 `src/app/api/feishu/webhook/route.ts` 第一步直接利用 sqlite 的 `UNIQUE constraint failed` 报错异常来进行原子的并发安全去重。

@@ -1,5 +1,5 @@
 import { getDb } from '@/db/index';
-import { ideas, scheduledTasks, userSettings, aiMemories } from '@/db/schema';
+import { ideas, scheduledTasks, userSettings, aiMemories, messages } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
 export interface ActionResult {
@@ -234,6 +234,24 @@ export async function saveMemory(
         content,
         importance,
         tags: JSON.stringify(tags),
+        source,
+        createdAt: Date.now(),
+    });
+}
+
+/**
+ * Save a system or AI message for the UI to display persistently
+ */
+export async function saveSystemMessage(
+    db: ReturnType<typeof getDb>,
+    userId: string,
+    content: string,
+    source: 'system' | 'ai' = 'system'
+): Promise<void> {
+    await db.insert(messages).values({
+        id: crypto.randomUUID(),
+        userId,
+        content,
         source,
         createdAt: Date.now(),
     });

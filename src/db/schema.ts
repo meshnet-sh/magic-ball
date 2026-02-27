@@ -80,3 +80,20 @@ export const aiMemories = sqliteTable("ai_memories", {
     source: text("source").notNull(),       // "web" | "feishu" | "cron"
     createdAt: integer("created_at").notNull(),
 });
+
+// ========== System Messages ==========
+
+export const messages = sqliteTable("messages", {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id),
+    content: text("content").notNull(),
+    source: text("source").notNull().default("system"), // "system" | "ai"
+    createdAt: integer("created_at").notNull(),
+});
+
+// ========== Feishu Events Deduplication ==========
+
+export const feishuEvents = sqliteTable("feishu_events", {
+    eventId: text("event_id").primaryKey(),
+    createdAt: integer("created_at").notNull(),
+});

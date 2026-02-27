@@ -5,6 +5,7 @@ import { userSettings, ideas, scheduledTasks } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { replyMessage } from '@/lib/feishu';
 import { executeAction, loadMemories, saveMemory } from '@/lib/executeAction';
+import { feishuEvents } from '@/db/schema';
 
 const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过飞书与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
 
@@ -41,10 +42,6 @@ actions 是数组，多个任务拆分为多个元素。
 4. 用中文回复
 `;
 
-// Deduplication: Feishu retries events if response >3s, prevent double processing
-const processedEvents = new Set<string>();
-const MAX_CACHE = 200;
-
 // POST handler for Feishu webhook events
 export async function POST(request: Request) {
     try {
@@ -57,15 +54,16 @@ export async function POST(request: Request) {
 
         // --- Step 2: Dedup check using event_id ---
         const eventId = body?.header?.event_id;
+
+        const { env } = await getCloudflareContext();
+        const db = getDb(env.DB);
+
         if (eventId) {
-            if (processedEvents.has(eventId)) {
-                return NextResponse.json({ code: 0 }); // already processed
-            }
-            processedEvents.add(eventId);
-            // Prevent memory leak: trim old entries
-            if (processedEvents.size > MAX_CACHE) {
-                const first = processedEvents.values().next().value;
-                if (first) processedEvents.delete(first);
+            try {
+                await db.insert(feishuEvents).values({ eventId, createdAt: Date.now() });
+            } catch (err: any) {
+                // Unique constraint failed because event is already processing/processed by another instance
+                return NextResponse.json({ code: 0 });
             }
         }
 
@@ -98,8 +96,6 @@ export async function POST(request: Request) {
         }
 
         // --- Step 4: Process via AI pipeline ---
-        const { env } = await getCloudflareContext();
-        const db = getDb(env.DB);
 
         // Find a user with Gemini API key configured
         const allSettings = await db.select().from(userSettings)
