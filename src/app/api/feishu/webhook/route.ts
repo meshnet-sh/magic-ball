@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings, ideas, scheduledTasks } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { replyMessage } from '@/lib/feishu';
 
 const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过飞书与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ code: 0 });
         }
 
-        // --- Step 3: Process via AI pipeline ---
+        // --- Step 4: Process via AI pipeline ---
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
@@ -109,6 +109,21 @@ export async function POST(request: Request) {
 
         const userId = allSettings[0].userId;
         const apiKey = allSettings[0].value;
+
+        // Save the sender's Feishu open_id for proactive push (cron notifications)
+        const senderOpenId = event?.sender?.sender_id?.open_id;
+        if (senderOpenId) {
+            const existing = await db.select().from(userSettings)
+                .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
+            if (existing.length === 0) {
+                await db.insert(userSettings).values({
+                    id: crypto.randomUUID(), userId, key: 'feishu_open_id', value: senderOpenId
+                });
+            } else if (existing[0].value !== senderOpenId) {
+                await db.update(userSettings).set({ value: senderOpenId })
+                    .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
+            }
+        }
 
         // Get model preference
         const modelSettings = await db.select().from(userSettings)

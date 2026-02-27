@@ -1,0 +1,6 @@
+name = "magic-ball-cron"
+main = "index.js"
+compatibility_date = "2024-12-30"
+
+[triggers]
+crons = ["* * * * *"]
