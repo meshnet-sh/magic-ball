@@ -60,10 +60,23 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
     userId: text("user_id").notNull().references(() => users.id),
     title: text("title").notNull(),
     triggerAt: integer("trigger_at").notNull(),        // epoch ms — next trigger time
-    recurrence: text("recurrence"),                     // null | "daily" | "weekly" | "monthly"
-    actionType: text("action_type").notNull(),          // "create_idea" | "create_poll" | "ai_prompt" | "reminder"
-    actionPayload: text("action_payload").notNull().default("{}"), // JSON
+    recurrence: text("recurrence"),                     // null | "minutes:X" | "hours:X" | "daily" | "weekly" | "monthly"
+    actionType: text("action_type").notNull(),          // quick filter: "create_idea" | "ai_agent" | "reminder" etc.
+    actionPayload: text("action_payload").notNull().default("{}"), // full action JSON
     status: text("status").notNull().default("active"), // "active" | "paused" | "completed"
     lastTriggered: integer("last_triggered"),
+    createdAt: integer("created_at").notNull(),
+});
+
+// ========== AI Memory ==========
+
+export const aiMemories = sqliteTable("ai_memories", {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id),
+    type: text("type").notNull(),           // "conversation" | "fact" | "decision"
+    content: text("content").notNull(),
+    importance: integer("importance").notNull().default(3), // 1-5
+    tags: text("tags").default("[]"),       // JSON array
+    source: text("source").notNull(),       // "web" | "feishu" | "cron"
     createdAt: integer("created_at").notNull(),
 });

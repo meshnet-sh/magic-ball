@@ -3,6 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { executeAction, loadMemories, saveMemory } from '@/lib/executeAction';
 
 function getUserIdFromCookie(request: Request) {
     const cookieHeader = request.headers.get('cookie') || "";
@@ -54,21 +55,21 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 \`\`\`
 
 ## 4. 日程调度 (scheduler)
-- **能力**: 创建定时/重复任务，查看任务列表，取消任务
+- **能力**: 创建定时/重复任务（可触发任意插件或唤醒AI），查看任务列表，取消任务
 - **创建定时任务**:
 \`\`\`json
-{"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "taskAction": "create_idea", "taskPayload": {"content": "笔记内容", "tags": ["标签"]}}
+{"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "提醒内容"}}
 \`\`\`
-- triggerAt: **epoch 毫秒时间戳**（必须根据用户描述的时间计算）
+- triggerAt: **epoch 毫秒时间戳**
 - recurrence: null(一次性) | "minutes:X"(每X分钟) | "hours:X"(每X小时) | "daily" | "weekly" | "monthly"
-- **分钟级重复**: 用户说"每5分钟提醒我"时，recurrence 填 "minutes:5"；"每2小时"填 "hours:2"
-- taskAction: "create_idea" | "ai_prompt" | "reminder"
-- taskPayload: 对应操作的参数 JSON
-- **当前时间**: 请根据对话上下文推算时间。如果用户说"明天下午3点"，你需要计算出对应的 epoch 毫秒时间戳
-- **示例输入**: "每天早上9点提醒我写日报"
-- **示例输出**:
+- scheduledAction: **要执行的完整 action 对象**，可以是任何插件操作:
+  - {"action": "reminder", "message": "..."} — 提醒
+  - {"action": "create_idea", "content": "...", "tags": [...]} — 创建笔记
+  - {"action": "ai_agent", "prompt": "..."} — **唤醒AI自主决策**
+- **兼容旧字段**: 也可用 taskAction + taskPayload
+- **AI Agent 工作流示例**: 用户说"帮我做一个每日工作流"时，创建多个定时任务:
 \`\`\`json
-{"action": "schedule_task", "title": "每日日报提醒", "triggerAt": 1709190000000, "recurrence": "daily", "taskAction": "reminder", "taskPayload": {"message": "记得写今天的日报"}}
+{"action": "schedule_task", "title": "每日AI总结", "triggerAt": epoch, "recurrence": "daily", "scheduledAction": {"action": "ai_agent", "prompt": "总结我今天创建的所有笔记，生成一份日报并记录为笔记"}}
 \`\`\`
 - **查看任务列表**:
 \`\`\`json
@@ -176,6 +177,9 @@ export async function POST(request: Request) {
             };
         });
 
+        // Load recent memories
+        const memStr = await loadMemories(db, userId, 15);
+
         // Call Gemini API
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -185,7 +189,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents,
                 systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n当前时间是: ${new Date().toISOString()}，epoch 毫秒: ${Date.now()}。请据此计算用户描述的时间对应的 triggerAt 时间戳。` }]
+                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n当前时间是: ${new Date().toISOString()}，epoch 毫秒: ${Date.now()}。请据此计算用户描述的时间对应的 triggerAt 时间戳。` + memStr }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',
@@ -217,19 +221,22 @@ export async function POST(request: Request) {
 
         try {
             const parsed = JSON.parse(responseText);
-            // New format: { transcript, actions: [...] }
-            if (parsed.actions && Array.isArray(parsed.actions)) {
-                return NextResponse.json({
-                    success: true,
-                    transcript: parsed.transcript || null,
-                    actions: parsed.actions
-                });
-            }
-            // Backward compat: single command object
+            let actions = parsed.actions || [parsed];
+
+            // Save conversation memory
+            const userMsg = messages.filter(m => m.role === 'user').pop()?.text || '(语音/无文本)';
+            const actionSummary = actions.map((a: any) =>
+                a.action === 'chat' ? `回复: ${a.message?.substring(0, 50)}` : `执行: ${a.action}`
+            ).join(', ');
+
+            await saveMemory(db, userId, 'conversation',
+                `用户: "${userMsg}" → AI: ${actionSummary}`,
+                3, ['chat'], 'web');
+
             return NextResponse.json({
                 success: true,
                 transcript: parsed.transcript || null,
-                actions: [parsed]
+                actions
             });
         } catch {
             return NextResponse.json({

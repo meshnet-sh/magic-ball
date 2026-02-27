@@ -4,6 +4,7 @@ import { getDb } from '@/db/index';
 import { userSettings, ideas, scheduledTasks } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { replyMessage } from '@/lib/feishu';
+import { executeAction, loadMemories, saveMemory } from '@/lib/executeAction';
 
 const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过飞书与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
 
@@ -17,9 +18,9 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 type: "single_choice" | "multi_choice" | "open_text"
 
 ## 3. 日程调度
-{"action": "schedule_task", "title": "任务名", "triggerAt": epoch毫秒, "recurrence": null, "taskAction": "reminder", "taskPayload": {"message": "内容"}}
+{"action": "schedule_task", "title": "任务名", "triggerAt": epoch毫秒, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "内容"}}
 recurrence: null | "minutes:X" | "hours:X" | "daily" | "weekly" | "monthly"
-taskAction: "create_idea" | "ai_prompt" | "reminder"
+scheduledAction: 任何合法的 action JSON (可嵌套 ai_agent 唤醒AI)
 分钟级示例: "每5分钟提醒我" → recurrence: "minutes:5"
 
 ## 4. 页面导航
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
         // Call Gemini
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const now = new Date();
+        const memStr = await loadMemories(db, userId, 15);
 
         const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
@@ -141,7 +143,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: userText }] }],
                 systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n${now.toISOString()}，epoch: ${now.getTime()}` }]
+                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n${now.toISOString()}，epoch: ${now.getTime()}` + memStr }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',
@@ -173,63 +175,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ code: 0 });
         }
 
-        // --- Step 4: Execute actions and collect results ---
+        // --- Step 4: Execute actions, collect results, save memory ---
         const results: string[] = [];
+        const actionSummary: string[] = [];
 
         for (const cmd of actions) {
-            try {
-                switch (cmd.action) {
-                    case 'create_idea': {
-                        const tags = cmd.tags || [];
-                        const content = tags.length > 0
-                            ? cmd.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')
-                            : cmd.content;
-                        await db.insert(ideas).values({
-                            id: crypto.randomUUID(),
-                            userId,
-                            type: 'text',
-                            content,
-                            tags: JSON.stringify(tags),
-                            createdAt: Date.now(),
-                        });
-                        results.push(`✅ 已记录: "${cmd.content}"`);
-                        break;
-                    }
-                    case 'create_poll': {
-                        // Use internal API call for polls (complex logic)
-                        results.push(`📊 投票创建请在网页端操作: "${cmd.title}"`);
-                        break;
-                    }
-                    case 'schedule_task': {
-                        await db.insert(scheduledTasks).values({
-                            id: crypto.randomUUID(),
-                            userId,
-                            title: cmd.title,
-                            triggerAt: cmd.triggerAt,
-                            recurrence: cmd.recurrence || null,
-                            actionType: cmd.taskAction || 'reminder',
-                            actionPayload: JSON.stringify(cmd.taskPayload || {}),
-                            status: 'active',
-                            createdAt: Date.now(),
-                        });
-                        results.push(`📅 已创建定时任务: "${cmd.title}"`);
-                        break;
-                    }
-                    case 'navigate': {
-                        results.push(`🔗 请在网页端访问: ${cmd.path}`);
-                        break;
-                    }
-                    case 'chat': {
-                        results.push(cmd.message || '好的');
-                        break;
-                    }
-                    default:
-                        results.push(`未知操作: ${cmd.action}`);
-                }
-            } catch (err: any) {
-                results.push(`❌ 执行失败: ${err.message}`);
+            const res = await executeAction(db, userId, cmd);
+            results.push(res.message);
+
+            if (cmd.action === 'chat') {
+                actionSummary.push(`回复: ${cmd.message?.substring(0, 50)}`);
+            } else {
+                actionSummary.push(`执行: ${cmd.action}`);
             }
         }
+
+        // Save conversation memory
+        await saveMemory(db, userId, 'conversation',
+            `飞书用户: "${userText}" → AI: ${actionSummary.join(', ')}`,
+            3, ['chat'], 'feishu');
 
         // Reply with all results
         await replyMessage(messageId, results.join('\n'));
