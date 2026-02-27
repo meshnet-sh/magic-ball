@@ -138,3 +138,25 @@
   - 前端 `/tools/scheduler` 页面: 任务列表、状态过滤、手动创建表单、暂停/恢复/删除操作。
   - 仪表盘: 新增日程调度工具卡片，60 秒客户端轮询自动检查到期任务并显示通知。
   - 侧边栏新增日程调度导航入口。
+
+---
+## 开发知识备忘
+
+### D1 数据库 Migration（迁移）
+- 每次新增需要存储数据的功能时，需要执行一次 migration，本质就是"为新功能做数据库初始化"。
+- 代码中的 `schema.ts` 只是告诉应用代码数据结构长什么样，数据库本身并不会自动同步，需要手动执行 SQL 来创建/修改表。
+- 项目中的 migration 文件 (drizzle/0000~0004.sql) 与功能对应:
+  - 0000 → 用户表 (登录)
+  - 0002 → 投票相关表 (投票功能)
+  - 0003 → 用户设置表 (AI 配置)
+  - 0004 → 定时任务表 (日程调度)
+
+### Wrangler 命令行工具
+- Wrangler 是 Cloudflare 官方 CLI 工具，用于在本地远程管理 Cloudflare 服务。
+- 已作为 npm 依赖安装在项目中，配置文件为 `wrangler.toml`。
+- 常用命令:
+  - `npx wrangler d1 execute <数据库名> --remote --command "SQL语句"` — 远程执行 D1 SQL
+  - `npx wrangler d1 list` — 查看所有 D1 数据库
+  - `npx wrangler deploy` — 部署 Worker
+  - `npx wrangler dev` — 本地开发调试
+- 注意: PowerShell 下需确保 Node.js 在 PATH 中，可用 `$env:PATH += ";C:\Program Files\nodejs"` 临时添加。
