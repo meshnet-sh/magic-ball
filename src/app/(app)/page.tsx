@@ -426,7 +426,6 @@ function AICommandCenter() {
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [triggerNotices, setTriggerNotices] = useState<string[]>([])
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then((d: any) => {
@@ -440,11 +439,7 @@ export default function Home() {
     const checkTriggers = async () => {
       try {
         const res = await fetch('/api/scheduler/trigger', { method: 'POST' })
-        const data = await res.json()
-        if (data.success && data.triggered > 0) {
-          const notices = data.results.map((r: any) => r.message)
-          setTriggerNotices(prev => [...notices, ...prev].slice(0, 5))
-        }
+        // Execution results are now pushed to Feishu on the backend
       } catch { }
     }
     checkTriggers() // initial check
@@ -464,17 +459,6 @@ export default function Home() {
           你个人的、高度可扩展的全能效率工具主控台。
         </p>
       </div>
-
-      {/* Trigger notices */}
-      {triggerNotices.length > 0 && (
-        <div className="space-y-2">
-          {triggerNotices.map((n, i) => (
-            <div key={i} className="px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl text-sm animate-in slide-in-from-top-2">
-              {n}
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* AI Command Center */}
       {isAuthenticated && <AICommandCenter />}
