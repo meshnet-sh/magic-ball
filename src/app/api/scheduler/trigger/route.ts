@@ -58,81 +58,31 @@ export async function POST(request: Request) {
             ));
 
         const results: { taskId: string; title: string; success: boolean; message: string }[] = [];
+        const userResults: string[] = [];
+
+        // Dynamic import to avoid circle dependencies if any, but straight import works
+        const { executeAction } = await import('@/lib/executeAction');
+        const { getAccessToken } = await import('@/lib/feishu');
 
         for (const task of dueTasks) {
-            let payload: any = {};
-            try { payload = JSON.parse(task.actionPayload); } catch { }
-
-            let success = false;
-            let message = '';
-
+            let actionCmd: any;
             try {
-                switch (task.actionType) {
-                    case 'create_idea': {
-                        const tags = payload.tags || [];
-                        const content = tags.length > 0
-                            ? payload.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')
-                            : payload.content;
-                        await db.insert(ideas).values({
-                            id: crypto.randomUUID(),
-                            userId,
-                            type: 'text',
-                            content: content || task.title,
-                            tags: JSON.stringify(tags),
-                            createdAt: now,
-                        });
-                        success = true;
-                        message = `已自动创建笔记: "${payload.content || task.title}"`;
-                        break;
+                const payload = JSON.parse(task.actionPayload);
+                if (payload.action) {
+                    actionCmd = payload;
+                } else {
+                    // Legacy ai_prompt to ai_agent translation
+                    if (task.actionType === 'ai_prompt') {
+                        actionCmd = { action: 'ai_agent', prompt: payload.prompt };
+                    } else {
+                        actionCmd = { action: task.actionType, ...payload };
                     }
-                    case 'ai_prompt': {
-                        // Get user's Gemini settings to call AI
-                        const settings = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
-                        const settingsMap: Record<string, string> = {};
-                        settings.forEach(s => { settingsMap[s.key] = s.value; });
-                        const apiKey = settingsMap['gemini_api_key'];
-                        const model = settingsMap['gemini_model'] || 'gemini-flash-latest';
-
-                        if (apiKey && payload.prompt) {
-                            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                            const geminiRes = await fetch(geminiUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    contents: [{ role: 'user', parts: [{ text: payload.prompt }] }],
-                                    generationConfig: { temperature: 0.5 }
-                                })
-                            });
-                            const data: any = await geminiRes.json();
-                            const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                            // Save AI response as an idea
-                            await db.insert(ideas).values({
-                                id: crypto.randomUUID(),
-                                userId,
-                                type: 'text',
-                                content: `[AI 定时任务: ${task.title}]\n${aiResponse}`,
-                                tags: JSON.stringify(['ai-scheduled']),
-                                createdAt: now,
-                            });
-                            success = true;
-                            message = `AI 任务已执行: "${task.title}"`;
-                        } else {
-                            message = 'AI 任务缺少 API Key 或 prompt';
-                        }
-                        break;
-                    }
-                    case 'reminder': {
-                        // Reminders are handled client-side (the task appearing as due is the reminder)
-                        success = true;
-                        message = `⏰ 提醒: ${payload.message || task.title}`;
-                        break;
-                    }
-                    default:
-                        message = `未知操作类型: ${task.actionType}`;
                 }
-            } catch (err: any) {
-                message = `执行失败: ${err.message}`;
+            } catch {
+                actionCmd = { action: task.actionType };
             }
+
+            const result = await executeAction(db, userId, actionCmd);
 
             // Update task: set lastTriggered, compute next trigger or mark completed
             const nextTrigger = computeNextTrigger(task.recurrence, task.triggerAt);
@@ -146,7 +96,29 @@ export async function POST(request: Request) {
                     .where(eq(scheduledTasks.id, task.id));
             }
 
-            results.push({ taskId: task.id, title: task.title, success, message });
+            results.push({ taskId: task.id, title: task.title, success: result.ok, message: result.message });
+            userResults.push(`[${task.title}] ${result.message}`);
+        }
+
+        // Send Feishu push notifications if there were tasks executed
+        if (userResults.length > 0) {
+            try {
+                const feishuSetting = await db.select().from(userSettings)
+                    .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
+                if (feishuSetting.length > 0) {
+                    const token = await getAccessToken();
+                    const notification = `📋 Magic Ball Web端触发任务报告\n\n${userResults.join('\n\n')}`;
+                    await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({
+                            receive_id: feishuSetting[0].value,
+                            content: JSON.stringify({ text: notification }),
+                            msg_type: 'text',
+                        }),
+                    });
+                }
+            } catch { }
         }
 
         return NextResponse.json({ success: true, triggered: results.length, results });

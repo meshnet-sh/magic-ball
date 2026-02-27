@@ -18,6 +18,7 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 type: "single_choice" | "multi_choice" | "open_text"
 
 ## 3. 日程调度
+- **极度重要**: 当用户表示要创建提醒或定时任务时，**必须先用 chat 询问确认**具体时间与内容。只有当用户回复确认后，才能返回下面的 schedule_task 命令。
 {"action": "schedule_task", "title": "任务名", "triggerAt": epoch毫秒, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "内容"}}
 recurrence: null | "minutes:X" | "hours:X" | "daily" | "weekly" | "monthly"
 scheduledAction: 任何合法的 action JSON (可嵌套 ai_agent 唤醒AI)
