@@ -241,3 +241,11 @@
   - 投票删除无反应Bug: 投票页面的删除按钮原先连续分步发出了三条单独的 `delete` 语句进行级联删除（responses -> options -> polls）。在 D1 环境或网络抖动时极易产生悬挂的 Promise 进而卡死。将其重构修改为原子的 `db.batch()` 批量执行，并增加了弹框捕获抛出底层的 Sqlite Error。
   - 定时调度操作减负: 降低了 AI Agent 的安全防御阈值，通过修改 `command/route.ts` 规则告诉 AI “只要意图明确就直接排期执行并返回单行确认，不需要再抛问题问用户是否确认”。
   - 飞书支持投票发起: 为核心的机器大脑 `executeAction.ts` 追加实现了 `create_poll` 解析能力。现在用户只需要在飞书发一句“周五去哪玩”，不仅数据库会自动创建投票列，还会通过机器人直接回传一个可以点击分享在群里的投票短连接。
+
+- **安全性、防御性编程与数据防患 (2026-02-28)**:
+  - 核心架构: 新增了 `src/lib/auth.ts` 集中处理密码学逻辑。
+  - 越权登录与伪造会话封堵: 移除了原来基于单纯随机 UUID 且明文存放在 Cookie 中的脆弱凭证机制。接入了基于 Server 独立密钥的 WebCrypto HMAC `signUserId` 和 `verifyAndExtractUserId`。现在所有的 /api 下包含用户鉴权的 12 个路由都被重构为仅信任校验过数字签名的 Cookie。
+  - 防御越权投票与数据脏乱 (BAC): `api/polls/[id]/route.ts` 原本接收任何来源的选项 ID 并无脑插入，导致潜在幽灵选项堆积。现在会在入库前去数据库二次拉取比对当前 ID 所在的母问题合法选项，如果对不上或者故意传空数组，直接拒绝服务。
+  - 投票防水军脚本 (Rate Limit) 体系: 由于之前投票防刷仅依赖前端指纹容易被伪造，现升级为将 Cloudflare Worker 层的 `cf-connecting-ip` 加上原生态前端 Fingerprint，并加盐进行 SHA256 复合哈希。这个 `secureFingerprint` 大大提升了机刷的作恶成本。
+  - 防 500 断路器 (Input Validation): 在 `ideas` 与 `scheduler` 创建接口前置了基于 typeof 与必填字段验证的 400 防御拦截，防止脏数据直接导致底层 SQLite 约束崩溃卡死。
+  - 统一删除确认流: 对“闪念笔记”与“调度器”中的删除交互进行了统一切换，从可能被浏览器悄悄拦截的 `window.confirm` 原生弹框，统一升级到了原地的 React State “确认删除？是/否” 内联渲染体验，并纠正了飞书 webhook 里的假域名错别字。
