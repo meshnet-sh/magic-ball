@@ -140,6 +140,9 @@ export async function executeAction(
                 const AGENT_PROMPT = `你是 Magic Ball AI Agent。你被定时任务唤醒来执行一个任务。
 分析下面的上下文和任务提示，然后返回要执行的 actions 数组。
 
+**【极度重要规则】**
+严格且仅基于以下提供的上下文（你的局部小世界）进行总结、回忆或回答。如果在此上下文中没有找到相关信息，请如实说明“近期内部没有相关记录”，**绝对禁止**使用你自带的各种大模型维基数据或外部新闻事实来编造外部世界的"大事件"以作为敷衍。
+
 可用 actions:
 - {"action": "create_idea", "content": "...", "tags": [...]}
 - {"action": "reminder", "message": "..."}
@@ -149,10 +152,10 @@ export async function executeAction(
 返回格式: {"actions": [...]}
 只返回合法 JSON，不要添加额外文字。
 
-# 当前时间
-${new Date().toISOString()}
+# 当前时间 (你的唯一绝对时间尺度)
+${new Date().toISOString()} (Epoch: ${Date.now()})
 
-# 上下文
+# 上下文 (你认知内的全部世界)
 ${contextParts.join('\n\n') || '(无上下文数据)'}
 `;
 
