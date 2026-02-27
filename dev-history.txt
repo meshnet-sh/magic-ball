@@ -129,3 +129,12 @@
   - System Prompt 改为返回 `{ transcript, actions[] }` 格式，支持一次说多个任务时全部拆分执行。
   - 语音输入时，用户气泡显示 `🎤 "识别到的文字"` 以呈现上下文。
   - 前端按顺序执行 actions 数组中的所有操作，某步失败时触发自动重试。
+
+- **日程调度插件 (Scheduler)**:
+  - 新增 `scheduled_tasks` 表 (D1 migration 0004)，支持定时触发时间、重复规则、操作类型和参数。
+  - CRUD API `/api/scheduler`: 创建/查询/更新/删除定时任务。
+  - 触发 API `/api/scheduler/trigger`: 检查到期任务并自动执行（创建笔记、触发 AI、提醒），支持重复任务自动计算下次触发时间。
+  - AI 集成: 新增 `schedule_task`(创建定时任务)、`list_tasks`(查看任务)、`cancel_task`(取消任务) 三个 AI 指令。System Prompt 注入实时时间戳，AI 可理解自然语言时间。
+  - 前端 `/tools/scheduler` 页面: 任务列表、状态过滤、手动创建表单、暂停/恢复/删除操作。
+  - 仪表盘: 新增日程调度工具卡片，60 秒客户端轮询自动检查到期任务并显示通知。
+  - 侧边栏新增日程调度导航入口。

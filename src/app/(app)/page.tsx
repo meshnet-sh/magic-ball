@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Vote, Zap, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -210,6 +210,37 @@ function AICommandCenter() {
         case 'navigate':
           router.push(cmd.path)
           return { ok: true, message: `🚀 正在跳转到 ${cmd.path}` }
+        case 'schedule_task': {
+          const res = await fetch('/api/scheduler', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: cmd.title,
+              triggerAt: cmd.triggerAt,
+              recurrence: cmd.recurrence || null,
+              actionType: cmd.taskAction,
+              actionPayload: cmd.taskPayload || {},
+            })
+          })
+          if (res.ok) return { ok: true, message: `📅 已创建定时任务: "${cmd.title}"` }
+          const err = await res.json().catch(() => ({}))
+          return { ok: false, message: `创建任务失败: ${(err as any).error || res.statusText}` }
+        }
+        case 'list_tasks': {
+          const res = await fetch('/api/scheduler?status=active')
+          const data = await res.json()
+          if (data.success && data.data) {
+            const taskList = data.data.length === 0 ? '当前没有定时任务。' :
+              data.data.map((t: any) => `• ${t.title} — ${new Date(t.triggerAt).toLocaleString('zh-CN')}${t.recurrence ? ` (${t.recurrence})` : ''}`).join('\n')
+            return { ok: true, message: `📋 当前任务:\n${taskList}` }
+          }
+          return { ok: false, message: '获取任务列表失败' }
+        }
+        case 'cancel_task': {
+          const res = await fetch(`/api/scheduler?id=${cmd.taskId}`, { method: 'DELETE' })
+          if (res.ok) return { ok: true, message: `🗑️ 任务已取消` }
+          return { ok: false, message: '取消任务失败' }
+        }
         case 'chat':
           return { ok: true, message: cmd.message || '好的' }
         default:
@@ -366,12 +397,31 @@ function AICommandCenter() {
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [triggerNotices, setTriggerNotices] = useState<string[]>([])
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then((d: any) => {
       setIsAuthenticated(d.authenticated === true)
     }).catch(() => setIsAuthenticated(false))
   }, [])
+
+  // Client-side trigger polling — check for due tasks every 60s
+  useEffect(() => {
+    if (isAuthenticated !== true) return
+    const checkTriggers = async () => {
+      try {
+        const res = await fetch('/api/scheduler/trigger', { method: 'POST' })
+        const data = await res.json()
+        if (data.success && data.triggered > 0) {
+          const notices = data.results.map((r: any) => r.message)
+          setTriggerNotices(prev => [...notices, ...prev].slice(0, 5))
+        }
+      } catch { }
+    }
+    checkTriggers() // initial check
+    const interval = setInterval(checkTriggers, 60000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto h-full animate-in fade-in zoom-in-95 duration-500">
@@ -385,6 +435,17 @@ export default function Home() {
           你个人的、高度可扩展的全能效率工具主控台。
         </p>
       </div>
+
+      {/* Trigger notices */}
+      {triggerNotices.length > 0 && (
+        <div className="space-y-2">
+          {triggerNotices.map((n, i) => (
+            <div key={i} className="px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl text-sm animate-in slide-in-from-top-2">
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* AI Command Center */}
       {isAuthenticated && <AICommandCenter />}
@@ -426,6 +487,26 @@ export default function Home() {
             <CardContent className="relative z-10">
               <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 创建单选、多选或意见征集投票，生成链接发给参与者即可匿名投票。支持访问码保护与防刷票机制。
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/tools/scheduler" className="block outline-none border-none">
+          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <CardHeader className="flex flex-col pb-2 relative z-10">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
+                  <Calendar className="h-6 w-6" />
+                </div>
+                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
+              </div>
+              <CardTitle className="text-xl font-semibold mt-4">日程调度</CardTitle>
+            </CardHeader>
+            <CardContent className="relative z-10">
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
+                创建定时或重复任务，自动执行操作或触发 AI。支持语音创建和智能时间识别。
               </p>
             </CardContent>
           </Card>

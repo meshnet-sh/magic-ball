@@ -52,3 +52,18 @@ export const userSettings = sqliteTable("user_settings", {
     key: text("key").notNull(),     // e.g. "gemini_api_key", "gemini_model"
     value: text("value").notNull(), // the setting value
 });
+
+// ========== Scheduler ==========
+
+export const scheduledTasks = sqliteTable("scheduled_tasks", {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id),
+    title: text("title").notNull(),
+    triggerAt: integer("trigger_at").notNull(),        // epoch ms — next trigger time
+    recurrence: text("recurrence"),                     // null | "daily" | "weekly" | "monthly"
+    actionType: text("action_type").notNull(),          // "create_idea" | "create_poll" | "ai_prompt" | "reminder"
+    actionPayload: text("action_payload").notNull().default("{}"), // JSON
+    status: text("status").notNull().default("active"), // "active" | "paused" | "completed"
+    lastTriggered: integer("last_triggered"),
+    createdAt: integer("created_at").notNull(),
+});

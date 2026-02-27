@@ -53,20 +53,45 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 {"action": "create_poll", "title": "周五团建去哪里？", "description": null, "type": "single_choice", "options": ["密室逃脱", "剧本杀", "桌游"], "accessCode": null}
 \`\`\`
 
-## 3. 页面导航 (navigate)
+## 4. 日程调度 (scheduler)
+- **能力**: 创建定时/重复任务，查看任务列表，取消任务
+- **创建定时任务**:
+\`\`\`json
+{"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "taskAction": "create_idea", "taskPayload": {"content": "笔记内容", "tags": ["标签"]}}
+\`\`\`
+- triggerAt: **epoch 毫秒时间戳**（必须根据用户描述的时间计算）
+- recurrence: null(一次性) | "daily" | "weekly" | "monthly"
+- taskAction: "create_idea" | "ai_prompt" | "reminder"
+- taskPayload: 对应操作的参数 JSON
+- **当前时间**: 请根据对话上下文推算时间。如果用户说"明天下午3点"，你需要计算出对应的 epoch 毫秒时间戳
+- **示例输入**: "每天早上9点提醒我写日报"
+- **示例输出**:
+\`\`\`json
+{"action": "schedule_task", "title": "每日日报提醒", "triggerAt": 1709190000000, "recurrence": "daily", "taskAction": "reminder", "taskPayload": {"message": "记得写今天的日报"}}
+\`\`\`
+- **查看任务列表**:
+\`\`\`json
+{"action": "list_tasks"}
+\`\`\`
+- **取消任务**:
+\`\`\`json
+{"action": "cancel_task", "taskId": "任务ID"}
+\`\`\`
+
+## 5. 页面导航 (navigate)
 - **能力**: 跳转到工具箱内的页面
 - **命令格式**:
 \`\`\`json
 {"action": "navigate", "path": "/tools/ideas"}
 \`\`\`
-- 可用路径: "/tools/ideas" (闪念笔记), "/tools/polls" (投票管理), "/settings" (设置)
+- 可用路径: "/tools/ideas" (闪念笔记), "/tools/polls" (投票管理), "/tools/scheduler" (日程调度), "/settings" (设置)
 - **示例输入**: "打开设置页面"
 - **示例输出**:
 \`\`\`json
 {"action": "navigate", "path": "/settings"}
 \`\`\`
 
-## 4. 通用对话 (chat)
+## 6. 通用对话 (chat)
 - **能力**: 回答与插件无关的问题、闲聊、提供建议
 - **命令格式**:
 \`\`\`json
@@ -159,7 +184,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents,
                 systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT }]
+                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n当前时间是: ${new Date().toISOString()}，epoch 毫秒: ${Date.now()}。请据此计算用户描述的时间对应的 triggerAt 时间戳。` }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',

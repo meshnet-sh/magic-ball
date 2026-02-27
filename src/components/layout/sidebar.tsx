@@ -10,6 +10,7 @@ import {
     Settings,
     Vote,
     Zap,
+    Calendar,
     ChevronsLeft,
     ChevronsRight,
     Sparkles,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
     { href: "/", label: "仪表盘", icon: Box },
     { href: "/tools/ideas", label: "闪念笔记", icon: Zap },
     { href: "/tools/polls", label: "投票收集", icon: Vote },
+    { href: "/tools/scheduler", label: "日程调度", icon: Calendar },
     { href: "/settings", label: "设置", icon: Settings },
 ]
 
