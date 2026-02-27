@@ -5,11 +5,7 @@ import { userSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { executeAction, loadMemories, saveMemory } from '@/lib/executeAction';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过语音或文字与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
 
@@ -128,7 +124,7 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 
 export async function POST(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();

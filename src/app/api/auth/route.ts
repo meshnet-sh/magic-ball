@@ -3,6 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { signUserId, verifyAndExtractUserId } from '@/lib/auth';
 
 async function hashPassword(password: string): Promise<string> {
     const encoder = new TextEncoder();
@@ -49,7 +50,9 @@ export async function POST(request: Request) {
 
         const response = NextResponse.json({ success: true, user: { id: user.id, email: user.email } });
 
-        response.cookies.set('auth_session', String(user.id), {
+        const signedSession = await signUserId(user.id);
+
+        response.cookies.set('auth_session', signedSession, {
             httpOnly: true,
             secure: true,
             sameSite: 'lax',
@@ -64,9 +67,12 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-    const sessionId = request.headers.get('cookie')?.split('auth_session=')?.[1]?.split(';')?.[0];
-    if (sessionId) {
-        return NextResponse.json({ authenticated: true, userId: sessionId });
+    const sessionCookie = request.headers.get('cookie')?.split('auth_session=')?.[1]?.split(';')?.[0];
+    if (sessionCookie) {
+        const userId = await verifyAndExtractUserId(sessionCookie);
+        if (userId) {
+            return NextResponse.json({ authenticated: true, userId });
+        }
     }
     return NextResponse.json({ authenticated: false });
 }

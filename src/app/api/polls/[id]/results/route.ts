@@ -4,19 +4,15 @@ import { getDb } from '@/db/index';
 import { polls, pollOptions, pollResponses } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 // GET: Fetch poll results (AUTHENTICATED — creator only)
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { id } = await params;
+        const { id } = await context.params;
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 

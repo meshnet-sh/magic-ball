@@ -4,16 +4,12 @@ import { getDb } from '@/db/index';
 import { userSettings } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 // GET: Fetch all settings for the current user
 export async function GET(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -32,7 +28,7 @@ export async function GET(request: Request) {
 // POST: Save a setting (upsert)
 export async function POST(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();

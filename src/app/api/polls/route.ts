@@ -4,16 +4,12 @@ import { getDb } from '@/db/index';
 import { polls, pollOptions, pollResponses } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 // GET: List all polls created by the current user
 export async function GET(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -46,7 +42,7 @@ export async function GET(request: Request) {
 // POST: Create a new poll
 export async function POST(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -87,7 +83,7 @@ export async function POST(request: Request) {
 // DELETE: Delete a poll and its options/responses
 export async function DELETE(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -119,7 +115,7 @@ export async function DELETE(request: Request) {
 // PATCH: Toggle poll active status
 export async function PATCH(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();

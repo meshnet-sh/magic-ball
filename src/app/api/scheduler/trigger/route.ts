@@ -4,11 +4,7 @@ import { getDb } from '@/db/index';
 import { scheduledTasks, ideas, userSettings } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 function computeNextTrigger(recurrence: string | null, currentTrigger: number): number | null {
     if (!recurrence) return null; // one-time task → no next trigger
@@ -42,7 +38,7 @@ function computeNextTrigger(recurrence: string | null, currentTrigger: number): 
 // POST — check & execute all due tasks for the current user
 export async function POST(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();

@@ -4,16 +4,12 @@ import { getDb } from '@/db/index';
 import { scheduledTasks } from '@/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
-function getUserIdFromCookie(request: Request) {
-    const cookieHeader = request.headers.get('cookie') || "";
-    const match = cookieHeader.match(/auth_session=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 // GET — list tasks
 export async function GET(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -42,12 +38,16 @@ export async function GET(request: Request) {
 // POST — create task
 export async function POST(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
         const body: any = await request.json();
+
+        if (!body.title || !body.actionType || typeof body.triggerAt !== 'number') {
+            return NextResponse.json({ success: false, error: '请求数据格式不合法' }, { status: 400 });
+        }
 
         const id = crypto.randomUUID();
         const now = Date.now();
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 // PATCH — update task status or fields
 export async function PATCH(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const { env } = await getCloudflareContext();
@@ -102,7 +102,7 @@ export async function PATCH(request: Request) {
 // DELETE — remove task
 export async function DELETE(request: Request) {
     try {
-        const userId = getUserIdFromCookie(request);
+        const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
         const url = new URL(request.url);
