@@ -203,6 +203,21 @@ ${contextParts.join('\n\n') || '(无上下文数据)'}
                 return { ok: true, message: `🔗 请在网页端访问: ${cmd.path}` };
             }
 
+            case 'schedule_task': {
+                const actionObj = cmd.scheduledAction || cmd.taskPayload || { action: 'reminder', message: cmd.title };
+                await db.insert(scheduledTasks).values({
+                    id: crypto.randomUUID(),
+                    userId,
+                    title: cmd.title || '定时任务',
+                    triggerAt: cmd.triggerAt,
+                    recurrence: cmd.recurrence || null,
+                    actionType: actionObj.action || actionObj.type || 'reminder',
+                    actionPayload: JSON.stringify(actionObj),
+                    createdAt: Date.now(),
+                });
+                return { ok: true, message: `📅 已创建定时任务: "${cmd.title}"` };
+            }
+
             case 'chat': {
                 return { ok: true, message: cmd.message || '好的' };
             }

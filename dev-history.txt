@@ -230,3 +230,8 @@
   - 根因分析: Cloudflare Worker 等 Serverless 环境在处理 webhook 时，如果AI请求耗时超过3秒，飞书会自动重试触发机制，导致同一个事件被多次处理并响应。之前的内存 `Set` 方案由于跨实例隔离，起不到去重作用。
   - 数据库演进: 新增了 `feishu_events` 表并通过 event_id 做主键。
   - 修复方案: 在 `src/app/api/feishu/webhook/route.ts` 第一步直接利用 sqlite 的 `UNIQUE constraint failed` 报错异常来进行原子的并发安全去重。
+
+- **创建定时任务传参 Error 修复**:
+  - 问题现象: 在 Web AI 指令中心确认创建提醒后，界面抛出数据库插入错误，提示 `action_type` 字段为 null。
+  - 根因分析: 前端的解析器错误地使用了老旧的 `cmd.taskAction`，而新的 AI Agent 规范返回的潜套对象是 `scheduledAction` 导致 `actionType` 没有正确提取。同时发现飞书 webhook 调用到 `executeAction.ts` 时也漏掉了 `schedule_task` 的分支支持。
+  - 修复方案: 更新了 `page.tsx` 中对 `scheduledAction` 的正确拆解映射；并在 `executeAction.ts` 补充了 `schedule_task` 存入数据库的逻辑。

@@ -240,8 +240,8 @@ function AICommandCenter() {
               title: cmd.title,
               triggerAt: cmd.triggerAt,
               recurrence: cmd.recurrence || null,
-              actionType: cmd.taskAction,
-              actionPayload: cmd.taskPayload || {},
+              actionType: cmd.scheduledAction?.action || cmd.taskAction || 'reminder',
+              actionPayload: cmd.scheduledAction || cmd.taskPayload || { action: 'reminder', message: cmd.title },
             })
           })
           if (res.ok) return { ok: true, message: `📅 已创建定时任务: "${cmd.title}"` }
