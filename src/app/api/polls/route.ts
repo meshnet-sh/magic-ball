@@ -98,7 +98,8 @@ export async function DELETE(request: Request) {
         if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
         // Verify ownership
-        const poll = await db.select().from(polls).where(and(eq(polls.id, id), eq(polls.userId, userId))).get();
+        const pollResults = await db.select().from(polls).where(and(eq(polls.id, id), eq(polls.userId, userId)));
+        const poll = pollResults[0];
         if (!poll) return NextResponse.json({ success: false, error: 'Not found or not authorized' }, { status: 404 });
 
         // Delete in order: responses -> options -> poll
@@ -122,7 +123,8 @@ export async function PATCH(request: Request) {
         const db = getDb(env.DB);
         const body: any = await request.json();
 
-        const poll = await db.select().from(polls).where(and(eq(polls.id, body.id), eq(polls.userId, userId))).get();
+        const pollResults = await db.select().from(polls).where(and(eq(polls.id, body.id), eq(polls.userId, userId)));
+        const poll = pollResults[0];
         if (!poll) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
 
         await db.update(polls).set({ isActive: !poll.isActive }).where(eq(polls.id, body.id));
