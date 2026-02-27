@@ -1,5 +1,5 @@
 import { getDb } from '@/db/index';
-import { ideas, scheduledTasks, userSettings, aiMemories, messages } from '@/db/schema';
+import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollOptions } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
 export interface ActionResult {
@@ -152,8 +152,8 @@ export async function executeAction(
 返回格式: {"actions": [...]}
 只返回合法 JSON，不要添加额外文字。
 
-# 当前时间 (你的唯一绝对时间尺度)
-${new Date().toISOString()} (Epoch: ${Date.now()})
+# 当前时间 (北京时间，你的唯一绝对时间尺度)
+${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })} (Epoch: ${Date.now()})
 
 # 上下文 (你认知内的全部世界)
 ${contextParts.join('\n\n') || '(无上下文数据)'}
@@ -216,6 +216,33 @@ ${contextParts.join('\n\n') || '(无上下文数据)'}
                     createdAt: Date.now(),
                 });
                 return { ok: true, message: `📅 已创建定时任务: "${cmd.title}"` };
+            }
+
+            case 'create_poll': {
+                const pollId = crypto.randomUUID();
+                await db.insert(polls).values({
+                    id: pollId,
+                    userId,
+                    title: cmd.title,
+                    description: cmd.description || null,
+                    type: cmd.type,
+                    accessCode: cmd.accessCode || null,
+                    isActive: true,
+                    createdAt: Date.now()
+                });
+
+                if (cmd.options && cmd.options.length > 0) {
+                    await Promise.all(cmd.options.map((opt: string, idx: number) =>
+                        db.insert(pollOptions).values({
+                            id: crypto.randomUUID(),
+                            pollId,
+                            content: opt,
+                            sortOrder: idx
+                        })
+                    ));
+                }
+                const url = `https://magic-ball.meshnet.sh/vote/${pollId}`;
+                return { ok: true, message: `📊 投票 "${cmd.title}" 已创建完毕。\n👉 分享链接邀请大家参与：\n${url}` };
             }
 
             case 'chat': {

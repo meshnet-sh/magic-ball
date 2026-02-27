@@ -103,13 +103,23 @@ export default function PollsPage() {
 
     const deletePoll = async (id: string) => {
         if (!confirm("确定要删除这个投票吗？所有数据将不可恢复。")) return
-        await fetch(`/api/polls?id=${id}`, { method: "DELETE" })
-        fetchPolls()
+        const res = await fetch(`/api/polls?id=${id}`, { method: "DELETE" })
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            alert(`删除失败: ${err.error || res.statusText}`)
+        } else {
+            fetchPolls()
+        }
     }
 
     const togglePoll = async (id: string) => {
         const res = await fetch("/api/polls", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
-        if (res.ok) fetchPolls()
+        if (res.ok) {
+            fetchPolls()
+        } else {
+            const err = await res.json().catch(() => ({}))
+            alert(`操作失败: ${err.error || res.statusText}`)
+        }
     }
 
     const viewResults = async (id: string) => {

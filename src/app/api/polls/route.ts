@@ -102,13 +102,16 @@ export async function DELETE(request: Request) {
         const poll = pollResults[0];
         if (!poll) return NextResponse.json({ success: false, error: 'Not found or not authorized' }, { status: 404 });
 
-        // Delete in order: responses -> options -> poll
-        await db.delete(pollResponses).where(eq(pollResponses.pollId, id));
-        await db.delete(pollOptions).where(eq(pollOptions.pollId, id));
-        await db.delete(polls).where(eq(polls.id, id));
+        // Delete via batch to avoid hanging promises and for atomicity
+        await db.batch([
+            db.delete(pollResponses).where(eq(pollResponses.pollId, id)),
+            db.delete(pollOptions).where(eq(pollOptions.pollId, id)),
+            db.delete(polls).where(eq(polls.id, id))
+        ]);
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        console.error("Poll delete error:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

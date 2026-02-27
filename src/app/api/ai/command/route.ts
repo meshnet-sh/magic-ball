@@ -56,8 +56,8 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 
 ## 4. 日程调度 (scheduler)
 - **能力**: 创建定时/重复任务（可触发任意插件或唤醒AI），查看任务列表，取消任务
-- **极度重要**: 当用户提出要创建提醒、日程或定时任务时，**绝对不要直接创建**。你必须先使用 chat 动作询问用户确认具体的时间、重复规则和要执行的内容。只有当用户明确回复“确认”或“没问题”等同意词语后，你才能使用 schedule_task 真正创建系统任务。
-- **创建定时任务** (仅在用户已确认的情况下调用):
+- **交互策略**: 如果用户提到的时间非常模糊产生强烈歧义，请先使用 chat 询问确认。但如果用户描述的时间意图明确（比如：“提醒我明天开会”，“每天早上叫我起床”），**请直接创建任务，并附带一句简短的 chat 告诉用户已设置好**，不需要啰嗦反问确认。
+- **创建定时任务**:
 \`\`\`json
 {"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "提醒内容"}}
 \`\`\`
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents,
                 systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间\n当前时间是: ${new Date().toISOString()}，epoch 毫秒: ${Date.now()}。请据此计算用户描述的时间对应的 triggerAt 时间戳。` + memStr }]
+                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间(北京时间)\n当前时间是: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch 毫秒: ${Date.now()}。这代表真实的本地时间，请据此计算用户描述的时间对应的 triggerAt 绝对毫秒时间戳。` + memStr }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',
