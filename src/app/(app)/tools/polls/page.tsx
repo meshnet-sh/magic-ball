@@ -52,6 +52,7 @@ export default function PollsPage() {
     const [expandedPoll, setExpandedPoll] = useState<string | null>(null)
     const [pollResults, setPollResults] = useState<Record<string, PollResult>>({})
     const [copiedId, setCopiedId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
     const router = useRouter()
 
     // Create form state
@@ -102,7 +103,6 @@ export default function PollsPage() {
     }
 
     const deletePoll = async (id: string) => {
-        if (!confirm("确定要删除这个投票吗？所有数据将不可恢复。")) return
         const res = await fetch(`/api/polls?id=${id}`, { method: "DELETE" })
         if (!res.ok) {
             const err = await res.json().catch(() => ({}))
@@ -110,6 +110,7 @@ export default function PollsPage() {
         } else {
             fetchPolls()
         }
+        setDeletingId(null)
     }
 
     const togglePoll = async (id: string) => {
@@ -249,9 +250,17 @@ export default function PollsPage() {
                                         {poll.isActive ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
                                         {poll.isActive ? "关闭" : "开启"}
                                     </button>
-                                    <button onClick={() => deletePoll(poll.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive ml-auto">
-                                        <Trash2 size={14} /> 删除
-                                    </button>
+                                    {deletingId === poll.id ? (
+                                        <div className="flex gap-2 text-xs ml-auto items-center">
+                                            <span className="text-destructive font-medium">确认永久删除?</span>
+                                            <button onClick={() => deletePoll(poll.id)} className="text-destructive hover:underline">是</button>
+                                            <button onClick={() => setDeletingId(null)} className="text-muted-foreground hover:underline">否</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setDeletingId(poll.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive ml-auto">
+                                            <Trash2 size={14} /> 删除
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 

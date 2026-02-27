@@ -35,10 +35,6 @@ export async function executeAction(
                 return { ok: true, message: `✅ 已记录: "${cmd.content}"` };
             }
 
-            case 'create_poll': {
-                return { ok: true, message: `📊 投票创建请在网页端操作: "${cmd.title}"` };
-            }
-
             case 'schedule_task': {
                 // Support both old format (taskAction) and new format (scheduledAction)
                 let actionType = cmd.taskAction || 'reminder';
