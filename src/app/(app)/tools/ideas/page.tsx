@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 
 function IdeaCard({ idea }: { idea: Idea }) {
     const { removeIdea } = useIdeasStore()
+    const [isDeleting, setIsDeleting] = useState(false)
 
     return (
         <div className="group relative flex flex-col gap-2 p-4 rounded-2xl bg-secondary/30 hover:bg-secondary/50 transition-colors border border-border/50 animate-in fade-in slide-in-from-bottom-2">
@@ -18,13 +19,23 @@ function IdeaCard({ idea }: { idea: Idea }) {
                 <span className="text-xs text-muted-foreground font-medium">
                     {formatDistanceToNow(idea.createdAt, { addSuffix: true, locale: zhCN })}
                 </span>
-                <button
-                    onClick={() => removeIdea(idea.id)}
-                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="删除记录"
-                >
-                    <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                    {isDeleting ? (
+                        <div className="flex gap-2 text-xs items-center px-1">
+                            <span className="text-destructive font-medium">确认删除?</span>
+                            <button onClick={() => removeIdea(idea.id)} className="text-destructive hover:underline">是</button>
+                            <button onClick={() => setIsDeleting(false)} className="text-muted-foreground hover:underline">否</button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsDeleting(true)}
+                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="删除记录"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {idea.type === 'text' && (

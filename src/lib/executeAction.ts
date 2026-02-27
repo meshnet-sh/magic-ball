@@ -237,7 +237,7 @@ ${contextParts.join('\n\n') || '(无上下文数据)'}
                         })
                     ));
                 }
-                const url = `https://magic-ball.meshnet.sh/vote/${pollId}`;
+                const url = `https://magic-ball.meshnets.org/vote/${pollId}`;
                 return { ok: true, message: `📊 投票 "${cmd.title}" 已创建完毕。\n👉 分享链接邀请大家参与：\n${url}` };
             }
 

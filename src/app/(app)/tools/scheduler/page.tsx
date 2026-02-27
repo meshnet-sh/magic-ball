@@ -38,6 +38,7 @@ export default function SchedulerPage() {
     const [tasks, setTasks] = useState<ScheduledTask[]>([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<'active' | 'all'>('active')
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
     // New task form
     const [showForm, setShowForm] = useState(false)
@@ -107,6 +108,7 @@ export default function SchedulerPage() {
 
     const deleteTask = async (id: string) => {
         await fetch(`/api/scheduler?id=${id}`, { method: 'DELETE' })
+        setDeletingId(null)
         fetchTasks()
     }
 
