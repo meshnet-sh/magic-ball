@@ -38,6 +38,10 @@ actions 是数组，多个任务拆分为多个元素。
 4. 用中文回复
 `;
 
+// Deduplication: Feishu retries events if response >3s, prevent double processing
+const processedEvents = new Set<string>();
+const MAX_CACHE = 200;
+
 // POST handler for Feishu webhook events
 export async function POST(request: Request) {
     try {
@@ -48,7 +52,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ challenge: body.challenge });
         }
 
-        // --- Step 2: Event callback v2.0 schema ---
+        // --- Step 2: Dedup check using event_id ---
+        const eventId = body?.header?.event_id;
+        if (eventId) {
+            if (processedEvents.has(eventId)) {
+                return NextResponse.json({ code: 0 }); // already processed
+            }
+            processedEvents.add(eventId);
+            // Prevent memory leak: trim old entries
+            if (processedEvents.size > MAX_CACHE) {
+                const first = processedEvents.values().next().value;
+                if (first) processedEvents.delete(first);
+            }
+        }
+
+        // --- Step 3: Event callback v2.0 schema ---
         const eventType = body?.header?.event_type;
         if (eventType !== 'im.message.receive_v1') {
             return NextResponse.json({ code: 0 }); // acknowledge but ignore

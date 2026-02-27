@@ -160,3 +160,10 @@
   - `npx wrangler deploy` — 部署 Worker
   - `npx wrangler dev` — 本地开发调试
 - 注意: PowerShell 下需确保 Node.js 在 PATH 中，可用 `$env:PATH += ";C:\Program Files\nodejs"` 临时添加。
+
+- **飞书机器人接入 AI 指令中心**:
+  - 新增 `src/lib/feishu.ts`: 飞书 API 工具类 (获取 tenant_access_token、回复消息、发送消息)。
+  - 新增 `/api/feishu/webhook`: 飞书事件回调端点，处理 URL 验证(challenge)、接收消息事件(im.message.receive_v1)。
+  - 消息处理流程: 接收文本 → 查找 Gemini API Key → 调用 AI → 执行命令(创建笔记/日程等) → 回复飞书。
+  - 添加 event_id 去重机制，防止飞书重试导致重复回复。
+  - 飞书配置: App ID cli_a92bd1e2eab81bc9, 需在飞书开放平台创建企业自建应用并发布。
