@@ -26,10 +26,11 @@ const ACTION_LABELS: Record<string, { label: string; icon: any; color: string }>
     reminder: { label: "提醒", icon: Bell, color: "text-blue-400" },
 }
 
-const RECURRENCE_LABELS: Record<string, string> = {
-    daily: "每天",
-    weekly: "每周",
-    monthly: "每月",
+function getRecurrenceLabel(r: string): string {
+    if (r.startsWith('minutes:')) return `每 ${r.split(':')[1]} 分钟`
+    if (r.startsWith('hours:')) return `每 ${r.split(':')[1]} 小时`
+    const labels: Record<string, string> = { daily: '每天', weekly: '每周', monthly: '每月' }
+    return labels[r] || r
 }
 
 export default function SchedulerPage() {
@@ -155,6 +156,12 @@ export default function SchedulerPage() {
                             <select value={recurrence} onChange={e => setRecurrence(e.target.value)}
                                 className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/50">
                                 <option value="">一次性</option>
+                                <option value="minutes:1">每分钟</option>
+                                <option value="minutes:5">每 5 分钟</option>
+                                <option value="minutes:10">每 10 分钟</option>
+                                <option value="minutes:30">每 30 分钟</option>
+                                <option value="hours:1">每小时</option>
+                                <option value="hours:2">每 2 小时</option>
                                 <option value="daily">每天</option>
                                 <option value="weekly">每周</option>
                                 <option value="monthly">每月</option>
@@ -236,7 +243,7 @@ export default function SchedulerPage() {
                                         </div>
                                         <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                                             <span className="flex items-center gap-1"><Clock size={11} /> {formatTriggerTime(task.triggerAt)}</span>
-                                            {task.recurrence && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{RECURRENCE_LABELS[task.recurrence] || task.recurrence}</span>}
+                                            {task.recurrence && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{getRecurrenceLabel(task.recurrence)}</span>}
                                             <span className="text-[10px]">{actionMeta.label}</span>
                                         </div>
                                     </div>

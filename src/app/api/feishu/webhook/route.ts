@@ -18,8 +18,9 @@ type: "single_choice" | "multi_choice" | "open_text"
 
 ## 3. 日程调度
 {"action": "schedule_task", "title": "任务名", "triggerAt": epoch毫秒, "recurrence": null, "taskAction": "reminder", "taskPayload": {"message": "内容"}}
-recurrence: null | "daily" | "weekly" | "monthly"
+recurrence: null | "minutes:X" | "hours:X" | "daily" | "weekly" | "monthly"
 taskAction: "create_idea" | "ai_prompt" | "reminder"
+分钟级示例: "每5分钟提醒我" → recurrence: "minutes:5"
 
 ## 4. 页面导航
 {"action": "navigate", "path": "/tools/ideas"}

@@ -60,7 +60,8 @@ const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过�
 {"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "taskAction": "create_idea", "taskPayload": {"content": "笔记内容", "tags": ["标签"]}}
 \`\`\`
 - triggerAt: **epoch 毫秒时间戳**（必须根据用户描述的时间计算）
-- recurrence: null(一次性) | "daily" | "weekly" | "monthly"
+- recurrence: null(一次性) | "minutes:X"(每X分钟) | "hours:X"(每X小时) | "daily" | "weekly" | "monthly"
+- **分钟级重复**: 用户说"每5分钟提醒我"时，recurrence 填 "minutes:5"；"每2小时"填 "hours:2"
 - taskAction: "create_idea" | "ai_prompt" | "reminder"
 - taskPayload: 对应操作的参数 JSON
 - **当前时间**: 请根据对话上下文推算时间。如果用户说"明天下午3点"，你需要计算出对应的 epoch 毫秒时间戳

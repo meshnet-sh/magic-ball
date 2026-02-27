@@ -10,6 +10,17 @@ const CRON_SECRET = 'mb-cron-2026-secret';
 
 function computeNextTrigger(recurrence: string | null, currentTrigger: number): number | null {
     if (!recurrence) return null;
+
+    // Support "minutes:X" and "hours:X" for fine-grained intervals
+    if (recurrence.startsWith('minutes:')) {
+        const mins = parseInt(recurrence.split(':')[1], 10);
+        if (mins > 0) return currentTrigger + mins * 60 * 1000;
+    }
+    if (recurrence.startsWith('hours:')) {
+        const hrs = parseInt(recurrence.split(':')[1], 10);
+        if (hrs > 0) return currentTrigger + hrs * 3600 * 1000;
+    }
+
     const d = new Date(currentTrigger);
     switch (recurrence) {
         case 'daily': d.setDate(d.getDate() + 1); return d.getTime();
