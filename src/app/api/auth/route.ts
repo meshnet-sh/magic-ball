@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { users, userSettings } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { signUserId, verifyAndExtractUserId } from '@/lib/auth';
 
 async function hashPassword(password: string): Promise<string> {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     try {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
-        const { email, password } = (await request.json()) as any;
+        const { email, password, action = 'login', inviteCode } = (await request.json()) as any;
 
         if (!email || !password) {
             return NextResponse.json({ success: false, error: 'Email and password required' }, { status: 400 });
@@ -25,24 +25,64 @@ export async function POST(request: Request) {
 
         let user = await db.select().from(users).where(eq(users.email, email)).get();
 
-        if (user) {
+        if (action === 'register') {
+            if (user) {
+                return NextResponse.json({ success: false, error: '该邮箱已被注册' }, { status: 400 });
+            }
+            if (inviteCode !== 'meshnet') {
+                return NextResponse.json({ success: false, error: '邀请码无效，请正确填写' }, { status: 403 });
+            }
+
+            const id = crypto.randomUUID();
+            const passwordHash = await hashPassword(password);
+            await db.insert(users).values({ id, email, passwordHash });
+            user = { id, email, passwordHash } as any;
+
+        } else if (action === 'login') {
+            if (!user) {
+                return NextResponse.json({ success: false, error: '账号不存在，请先注册' }, { status: 404 });
+            }
+
+            // Check if password reset is flagged
+            const resetFlag = await db.select().from(userSettings)
+                .where(and(eq(userSettings.userId, user.id), eq(userSettings.key, 'needs_password_reset'))).get();
+
+            if (resetFlag && resetFlag.value === 'true') {
+                return NextResponse.json({ success: true, action_required: 'reset_password' });
+            }
+
             const inputHash = await hashPassword(password);
             const isValid = inputHash === user.passwordHash;
             if (!isValid) {
                 return NextResponse.json({ success: false, error: '密码错误' }, { status: 401 });
             }
-        } else {
-            // Open Registration: Allow any new email to register
-            const id = crypto.randomUUID();
-            const passwordHash = await hashPassword(password);
 
-            await db.insert(users).values({ id, email, passwordHash });
-            user = { id, email, passwordHash };
+        } else if (action === 'reset') {
+            if (!user) {
+                return NextResponse.json({ success: false, error: '账号不存在' }, { status: 404 });
+            }
+
+            const resetFlag = await db.select().from(userSettings)
+                .where(and(eq(userSettings.userId, user.id), eq(userSettings.key, 'needs_password_reset'))).get();
+
+            if (!resetFlag || resetFlag.value !== 'true') {
+                return NextResponse.json({ success: false, error: '无权重置密码' }, { status: 403 });
+            }
+
+            const newHash = await hashPassword(password);
+            await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
+            await db.delete(userSettings)
+                .where(and(eq(userSettings.userId, user.id), eq(userSettings.key, 'needs_password_reset')));
+
+            user.passwordHash = newHash;
+
+        } else {
+            return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
         }
 
-        const response = NextResponse.json({ success: true, user: { id: user.id, email: user.email } });
+        const response = NextResponse.json({ success: true, user: { id: user!.id, email: user!.email } });
 
-        const signedSession = await signUserId(user.id);
+        const signedSession = await signUserId(user!.id);
 
         response.cookies.set('auth_session', signedSession, {
             httpOnly: true,

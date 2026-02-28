@@ -285,9 +285,39 @@ export default function SettingsPage() {
                                     {expandedSection === "users" && (
                                         <ul className="divide-y divide-border/30 border-t border-border/30">
                                             {adminData.users.map((u: any) => (
-                                                <li key={u.id} className="px-4 py-3 text-sm flex justify-between">
-                                                    <span>{u.email}</span>
-                                                    <span className="text-[10px] text-muted-foreground font-mono">{u.id.substring(0, 8)}...</span>
+                                                <li key={u.id} className="px-4 py-3 flex items-center justify-between hover:bg-secondary/30 transition-colors">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-medium">{u.email}</span>
+                                                        <span className="text-[10px] text-muted-foreground font-mono">ID: {u.id.substring(0, 12)}...</span>
+                                                    </div>
+
+                                                    {u.email !== 'meshnet@163.com' && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 text-xs border-orange-500/30 text-orange-600 hover:bg-orange-500/10 hover:text-orange-600"
+                                                            onClick={async () => {
+                                                                if (!confirm(`确定要强制重置 ${u.email} 的密码吗？其下次登录将被拦截要求输入新密码。`)) return;
+                                                                try {
+                                                                    const res = await fetch('/api/admin', {
+                                                                        method: 'POST',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({ action: 'FLAG_PASSWORD_RESET', targetUserId: u.id })
+                                                                    });
+                                                                    const data = await res.json();
+                                                                    if (res.ok && data.success) {
+                                                                        alert("标记成功！该用户下次登录时将被强制重置密码。");
+                                                                    } else {
+                                                                        alert(data.error || "操作失败");
+                                                                    }
+                                                                } catch (e) {
+                                                                    alert("网络错误");
+                                                                }
+                                                            }}
+                                                        >
+                                                            要求重置密码
+                                                        </Button>
+                                                    )}
                                                 </li>
                                             ))}
                                         </ul>
