@@ -317,3 +317,7 @@
 - 后端扩展：在 `/api/messages` 中新增了 `DELETE` 接口以支持按用户清空历史。
 - 前端同步：将 `AICommandCenter` 的清空动作改为异步 API 调用，确保刷新后对话不再复现。
 
+
+### 2026-02-28: n8n Webhook 500 閿欒鎺掓煡 (Switch 鑺傜偣)
+- 閿欒璇婃柇锛氬垎鏋愪簡 "No item to return was found" 閿欒锛岀‘璁ゆ槸鍥犱负 n8n Webhook 鑺傜偣鐨勫搷搴旀ā寮忚涓?"When Last Node Finishes"锛屼絾 Switch 閫昏緫瀵艰嚧鎵ц璺緞鏈繑鍥炴湁鏁堟暟鎹€?
+- 淇寤鸿锛氬缓璁敤鎴峰皢 Webhook 鍝嶅簲妯″紡鏀逛负 "On Received"锛屾垨鍦ㄦ瘡涓垎鏀湯灏炬坊鍔?"Respond to Webhook" 鑺傜偣銆?
