@@ -159,6 +159,8 @@ export async function executeAction(
 - {"action": "reminder", "message": "..."}
 - {"action": "schedule_task", "title": "...", "triggerAt": epoch_ms, "recurrence": "...", "scheduledAction": {...}}
 - {"action": "trigger_external_workflow", "event": "...", "payload": {"key": "value"}}
+  *重要附则*：如果意图是发送邮件，必须严格遵守此结构：
+  {"action": "trigger_external_workflow", "event": "send_email", "payload": {"to": "邮箱地址", "subject": "标题", "body": "邮件正文"}}
 - {"action": "chat", "message": "..."}
 
 返回格式: {"actions": [...]}
