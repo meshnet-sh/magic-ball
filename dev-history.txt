@@ -287,8 +287,27 @@
 
   - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 /api/external-workflow 路由供 Web 端直接调用，将 AI 返回的 trigger_external_workflow 行动桥接到后端的 n8n 集成系统。
 
+### 2026-02-28: External Interface Center & n8n Automation Integration
+- 浣撶郴璁剧疆 Settings 鎵╁睍: 鍦?`api/settings/route.ts` 涓?`settings/page.tsx` 涓柊澧炰簡绠＄悊鍛樹笓灞炵殑 integrations 閰嶇疆椤癸紝閲囩敤鍙墿灞曠殑 JSON 瀛楁锛岀涓€鏈熸敮鎸侀厤缃?n8n 鑷姩鍖栧钩鍙扮殑 Webhook URL 鍜屽畨鍏ㄩ壌鏉?Token銆?
+- 澶栭儴鎺ュ彛澶х洏 (Dashboard): 灏嗕箣鍓嶇殑 tools/api 鐨勫崰浣嶇鍗囩骇涓烘寮忕殑鎺у埗闈㈡澘锛屽彲浠ュ姩鎬佽鍙栫郴缁熻缃苟鍦?Dashboard 涓婂悜绠＄悊鍛樺睍绀?n8n 鐨勮繛鎺ョ姸鎬佷笌 Webhook 淇℃伅銆?
+- Outbound (Magic-Ball -> n8n) 瑙﹀彂鍣ㄦ敮鎸?
+  - 鍒涘缓浜?`lib/n8n.ts` 涓撻棬澶勭悊鍚?n8n Webhook 鑺傜偣鎺ㄩ€?HTTP POST 鏁版嵁銆?
+  - AI Agent 鑳藉姏鎵╁睍: 淇敼浜嗗簳灞傜殑璋冨害寮曟搸 `executeAction.ts` 鍙婂叾绯荤粺 Prompt锛岃祴浜?AI 鍏ㄦ柊鍔ㄤ綔鎸囦护 `trigger_external_workflow`銆傜幇鍦ㄦ棤璁烘槸瀹氭椂浠诲姟杩樻槸鎵嬪姩鑱婂ぉ锛屽彧瑕佹寚浠ゅ榻愶紝AI 鍗冲彲鏍规嵁涓婁笅鏂囦富鍔ㄥ喅鏂皟鐢?n8n 瑙﹀彂鎵╁睍搴旂敤銆?
+- Inbound (n8n -> Magic-Ball) Webhook 鏀寔:
+  - 鏂板寮€鏀惧洖璋冪綉鍏?`api/webhooks/n8n/route.ts`銆傚綋 n8n 渚ф墽琛屽畬鑰楁椂鑷姩鍖栦换鍔″悗锛屽彲閫氳繃璇ユ帴鍙ｆ惡鏁版嵁鍥炲啓銆?
+  - 鎸囦护鍐呮牳娉ㄥ叆: 浼犲叆鐨勫悎娉曟暟鎹彲浠ョ洿鎺ュ湪鍚庡彴瑙﹀彂瀹屾暣鐨?`executeAction`銆?
+
+- **AI Agent 璋冨害鑳藉姏寮哄寲 (Bugfix)**:
+  - 淇浜嗕富瀵硅瘽绐楀彛 (Chat UI) 涓?AI 涓嶇煡閬撹嚜宸辨嫢鏈夎皟鐢ㄥ閮ㄦ娊璞″伐鍏?(trigger_external_workflow) 鐨勮兘鍔涚己闄枫€?
+  - 鍦ㄧ郴缁熺殑鑱婂ぉ鎸囦护瑙ｆ瀽鍣ㄦ牳蹇?Prompt 鍐咃紝涓哄閮ㄨ嚜鍔ㄥ寲鎿嶄綔鍐欏叆浜嗗己鍒剁殑涓ユ牸 Payload JSON 楠ㄦ灦缁撴瀯銆?
+  - 淇浜嗕富瀵硅瘽绐楀彛鍝嶅簲澶栭儴鎸傝浇娴佺▼鏃剁己灏戝鐞嗙鐐圭殑闂锛氭柊寤轰簡 `/api/external-workflow` 璺敱渚?Web 绔洿鎺ヨ皟鐢紝灏?AI 杩斿洖鐨?`trigger_external_workflow` 琛屽姩妗ユ帴鍒板悗绔殑 n8n 闆嗘垚绯荤粺銆?
+
 ### 2026-02-28: n8n 鑷姩鍖栨墿灞曟灦鏋勫挩璇?
 - 鎵╁睍鎬ф帰璁細纭浜?n8n 宸ヤ綔娴佺殑鈥滀竴瀵瑰鈥濊兘鍔涖€傚崟涓?Webhook 鑺傜偣鍙互閫氳繃锛?
   - **鍒嗘敮 (Branching)**: 鐩存帴杩炴帴澶氫釜鍚庣画鑺傜偣瀹炵幇骞惰瑙﹀彂銆?
   - **閫昏緫鍒ゆ柇 (If/Switch)**: 鏍规嵁浼犲叆鏁版嵁鐨?Payload 鏅鸿兘璺敱鍒颁笉鍚岀殑澶勭悊璺緞銆?
   - **妯″潡鍖栬В鑰?*: 瀵逛簬澶嶆潅鍔熻兘锛屽缓璁娇鐢?`Execute Workflow` 鑺傜偣璋冪敤瀛愭祦绋嬶紝淇濇寔涓?Webhook 鍏ュ彛绠€娲佷笖鏄撲簬缁存姢銆?
+
+### 2026-02-28: n8n 閭欢鍙戦€?Payload 瑙勮寖
+- 鎺ュ彛瀵归綈锛氳创鍑轰簡 AI Agent 瑙﹀彂閭欢鍙戦€佺殑涓ユ牸 JSON 缁撴瀯銆?
+- 鑷姩鍖栧鎺ワ細鏄庣‘浜?payload 瀛楁锛坱o, subject, body锛変笌 n8n 閭欢鑺傜偣鐨勬槧灏勫叧绯汇€?
