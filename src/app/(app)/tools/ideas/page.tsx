@@ -229,7 +229,7 @@ export default function IdeasPage() {
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="记录闪念... (Ctrl+Enter 发送; 支持 #标签)"
-                        className="flex-1 bg-transparent resize-none outline-none max-h-32 min-h-[44px] p-2 text-sm placeholder:text-muted-foreground"
+                        className="flex-1 bg-transparent resize-none outline-none max-h-32 min-h-[56px] p-3 text-base md:text-sm placeholder:text-muted-foreground"
                         rows={text.split('\n').length > 1 ? Math.min(text.split('\n').length, 5) : 1}
                     />
                 )}
@@ -251,10 +251,10 @@ export default function IdeasPage() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="h-10 w-10 shrink-0 text-muted-foreground hover:text-primary rounded-full"
+                                className="h-14 w-14 shrink-0 text-muted-foreground hover:text-primary rounded-full md:h-12 md:w-12"
                                 title="上传图片/拍照"
                             >
-                                <ImageIcon size={20} />
+                                <ImageIcon size={24} />
                             </Button>
                         </>
                     )}
@@ -264,20 +264,20 @@ export default function IdeasPage() {
                             onClick={stopRecording}
                             variant="destructive"
                             size="icon"
-                            className="h-10 w-10 shrink-0 rounded-full shadow-md animate-pulse ml-2"
+                            className="h-14 w-14 shrink-0 rounded-full shadow-md animate-pulse ml-2 md:h-12 md:w-12"
                             title="停止并保存录音"
                         >
-                            <Square size={16} fill="currentColor" />
+                            <Square size={24} fill="currentColor" />
                         </Button>
                     ) : (
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={startRecording}
-                            className="h-10 w-10 shrink-0 text-muted-foreground hover:text-primary rounded-full transition-all"
+                            className="h-14 w-14 shrink-0 text-muted-foreground hover:text-primary rounded-full transition-all md:h-12 md:w-12"
                             title="开始录音"
                         >
-                            <Mic size={20} className={cn(!text.trim() && "text-primary scale-110")} />
+                            <Mic size={28} className={cn(!text.trim() && "text-primary scale-110")} />
                         </Button>
                     )}
 
@@ -285,10 +285,10 @@ export default function IdeasPage() {
                         <Button
                             onClick={handleSendText}
                             size="icon"
-                            className="h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-md ml-1 animate-in zoom-in-50"
+                            className="h-14 w-14 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-md ml-1 animate-in zoom-in-50 md:h-12 md:w-12"
                             title="发送文字"
                         >
-                            <Send size={18} className="ml-0.5" />
+                            <Send size={24} className="ml-0.5" />
                         </Button>
                     )}
                 </div>

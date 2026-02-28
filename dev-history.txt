@@ -264,3 +264,5 @@
 
 - Authentication UI Overhaul (Login/Register/Reset): Removed the implicit 'magic' login system. Registration now requires an explicit toggle and validation against the mandatory 'meshnet' invitation code. Login errors explicitly differentiate between wrong password and unregistered email.
 - Password Reset Architecture: Created a secure backend flow for password resets. Admins can click 'Request Password Reset' next to any user in the dashboard, setting a database flag. Upon their next login attempt, the user is intercepted and forced to enter a new password to overwrite their hash and clear the flag.
+
+- Mobile UI Optimization: Added extra bottom padding to the main layout to prevent mobile browser navigation bar overlap. Simplified dashboard tool cards by hiding descriptions on small screens and significantly enlarged the AI Command Center and Fast Idea Logger interactive buttons (especially the microphone recording button) for better touch usability.

@@ -403,21 +403,21 @@ function AICommandCenter() {
           onClick={isRecording ? stopRecording : startRecording}
           disabled={isProcessing}
           className={cn(
-            "p-3 rounded-xl border transition-all shrink-0",
+            "h-[56px] w-[56px] flex items-center justify-center rounded-xl border transition-all shrink-0",
             isRecording
               ? "bg-red-500/10 border-red-500/30 text-red-400 ring-2 ring-red-500/20 animate-pulse"
               : "bg-background border-border/50 text-muted-foreground hover:text-primary hover:border-primary/20"
           )}
         >
-          {isRecording ? <Square size={16} /> : <Mic size={16} />}
+          {isRecording ? <Square size={24} /> : <Mic size={24} />}
         </button>
         <Button
           onClick={() => handleSend()}
           disabled={!input.trim() || isProcessing}
           size="icon"
-          className="rounded-xl h-[46px] w-[46px] shrink-0"
+          className="rounded-xl h-[56px] w-[56px] shrink-0"
         >
-          <Send size={16} />
+          <Send size={24} />
         </Button>
       </div>
     </div>
@@ -477,7 +477,7 @@ export default function Home() {
               </div>
               <CardTitle className="text-xl font-semibold mt-4">闪念笔记</CardTitle>
             </CardHeader>
-            <CardContent className="relative z-10">
+            <CardContent className="relative z-10 hidden sm:block">
               <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 极速无感知的多媒体随身便签。支持 #标签 提取、语音录制和图片上传，数据完全本地私有化。
               </p>
@@ -497,7 +497,7 @@ export default function Home() {
               </div>
               <CardTitle className="text-xl font-semibold mt-4">投票收集</CardTitle>
             </CardHeader>
-            <CardContent className="relative z-10">
+            <CardContent className="relative z-10 hidden sm:block">
               <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 创建单选、多选或意见征集投票，生成链接发给参与者即可匿名投票。支持访问码保护与防刷票机制。
               </p>
@@ -517,7 +517,7 @@ export default function Home() {
               </div>
               <CardTitle className="text-xl font-semibold mt-4">日程调度</CardTitle>
             </CardHeader>
-            <CardContent className="relative z-10">
+            <CardContent className="relative z-10 hidden sm:block">
               <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 创建定时或重复任务，自动执行操作或触发 AI。支持语音创建和智能时间识别。
               </p>
