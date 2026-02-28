@@ -266,3 +266,5 @@
 - Password Reset Architecture: Created a secure backend flow for password resets. Admins can click 'Request Password Reset' next to any user in the dashboard, setting a database flag. Upon their next login attempt, the user is intercepted and forced to enter a new password to overwrite their hash and clear the flag.
 
 - Mobile UI Optimization: Added extra bottom padding to the main layout to prevent mobile browser navigation bar overlap. Simplified dashboard tool cards by hiding descriptions on small screens and significantly enlarged the AI Command Center and Fast Idea Logger interactive buttons (especially the microphone recording button) for better touch usability.
+
+- Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (外部功能接口) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (使用帮助) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
