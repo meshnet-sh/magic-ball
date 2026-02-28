@@ -106,8 +106,13 @@ export async function POST(request: Request) {
                 if (fileKey) {
                     const { downloadResource } = await import('@/lib/feishu');
                     const { buffer, mimeType } = await downloadResource(messageId, fileKey, 'file');
-                    // Workaround for some Gemini mimeTypes
-                    const finalMimeType = mimeType === 'application/octet-stream' ? 'audio/mp3' : mimeType;
+
+                    // 飞书原生的语音多为 OPUS，转交给 Gemini 时声明为兼容性更好的 ogg 或 aac 容器格式
+                    let finalMimeType = mimeType;
+                    if (mimeType === 'application/octet-stream' || mimeType.includes('opus') || mimeType.includes('amr')) {
+                        finalMimeType = 'audio/ogg'; // Gemini 2.0 highly compatible with ogg/opus 
+                    }
+
                     const base64Data = Buffer.from(buffer).toString('base64');
                     mediaPart = { inlineData: { mimeType: finalMimeType, data: base64Data } };
                     userText = "我发了一段语音，请分析语音内容并执行相应的指令。";
