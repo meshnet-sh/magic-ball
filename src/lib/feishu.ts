@@ -76,3 +76,31 @@ export async function sendMessage(chatId: string, text: string): Promise<void> {
         }),
     });
 }
+
+/**
+ * Download a resource (image/audio) from a Feishu message
+ */
+export async function downloadResource(messageId: string, fileKey: string, type: 'image' | 'file'): Promise<{ buffer: Uint8Array, mimeType: string }> {
+    const token = await getAccessToken();
+    const url = new URL(`https://open.feishu.cn/open-apis/im/v1/messages/${messageId}/resources/${fileKey}`);
+    url.searchParams.append('type', type);
+
+    const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to download Feishu resource: ${res.status} ${res.statusText}`);
+    }
+
+    const mimeType = res.headers.get('content-type') || 'application/octet-stream';
+    const arrayBuffer = await res.arrayBuffer();
+
+    return {
+        buffer: new Uint8Array(arrayBuffer),
+        mimeType
+    };
+}

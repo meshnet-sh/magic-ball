@@ -249,3 +249,6 @@
   - 投票防水军脚本 (Rate Limit) 体系: 由于之前投票防刷仅依赖前端指纹容易被伪造，现升级为将 Cloudflare Worker 层的 `cf-connecting-ip` 加上原生态前端 Fingerprint，并加盐进行 SHA256 复合哈希。这个 `secureFingerprint` 大大提升了机刷的作恶成本。
   - 防 500 断路器 (Input Validation): 在 `ideas` 与 `scheduler` 创建接口前置了基于 typeof 与必填字段验证的 400 防御拦截，防止脏数据直接导致底层 SQLite 约束崩溃卡死。
   - 统一删除确认流: 对“闪念笔记”与“调度器”中的删除交互进行了统一切换，从可能被浏览器悄悄拦截的 `window.confirm` 原生弹框，统一升级到了原地的 React State “确认删除？是/否” 内联渲染体验，并纠正了飞书 webhook 里的假域名错别字。
+
+- **多模态能力升级 (2026-02-28 补充)**:
+  - 飞书语音与图片支持: 在 `lib/feishu.ts` 中新增了底层的 `downloadResource` 工具以抓取飞书用户的私聊富媒体附件。同时在 `api/feishu/webhook/route.ts` 放开了对 `image` 及 `audio` 消息类型的拦截，将其二进制 Buffer 转作 base64 `inlineData` 喂给后台底层的 Gemini 2.0 原生多模态解析内核。现在用户可以直接往飞书发语音做记录排期了。

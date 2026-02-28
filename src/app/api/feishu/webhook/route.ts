@@ -77,21 +77,48 @@ export async function POST(request: Request) {
         const messageType = event?.message?.message_type;
         const messageId = event?.message?.message_id;
 
-        // Only handle text messages for now
-        if (messageType !== 'text' || !messageId) {
+        // Only handle text, image, and audio messages
+        const validTypes = ['text', 'image', 'audio'];
+        if (!validTypes.includes(messageType) || !messageId) {
             return NextResponse.json({ code: 0 });
         }
 
-        // Extract text content
+        // Extract text content and potential media
         let userText = '';
+        let mediaPart: { inlineData: { mimeType: string, data: string } } | null = null;
+
         try {
             const content = JSON.parse(event.message.content);
-            userText = content.text || '';
-        } catch {
+
+            if (messageType === 'text') {
+                userText = content.text || '';
+            } else if (messageType === 'image') {
+                const imageKey = content.image_key;
+                if (imageKey) {
+                    const { downloadResource } = await import('@/lib/feishu');
+                    const { buffer, mimeType } = await downloadResource(messageId, imageKey, 'image');
+                    const base64Data = Buffer.from(buffer).toString('base64');
+                    mediaPart = { inlineData: { mimeType, data: base64Data } };
+                    userText = "我发了一张图片，请分析或提取其中的核心想法，如果包含待办或意图，请转为相应的操作指令。";
+                }
+            } else if (messageType === 'audio') {
+                const fileKey = content.file_key;
+                if (fileKey) {
+                    const { downloadResource } = await import('@/lib/feishu');
+                    const { buffer, mimeType } = await downloadResource(messageId, fileKey, 'file');
+                    // Workaround for some Gemini mimeTypes
+                    const finalMimeType = mimeType === 'application/octet-stream' ? 'audio/mp3' : mimeType;
+                    const base64Data = Buffer.from(buffer).toString('base64');
+                    mediaPart = { inlineData: { mimeType: finalMimeType, data: base64Data } };
+                    userText = "我发了一段语音，请分析语音内容并执行相应的指令。";
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse Feishu message content or download media:', e);
             return NextResponse.json({ code: 0 });
         }
 
-        if (!userText.trim()) {
+        if (messageType === 'text' && !userText.trim()) {
             return NextResponse.json({ code: 0 });
         }
 
@@ -134,11 +161,15 @@ export async function POST(request: Request) {
         const now = new Date();
         const memStr = await loadMemories(db, userId, 15);
 
+        const parts: any[] = [];
+        if (userText) parts.push({ text: userText });
+        if (mediaPart) parts.push(mediaPart);
+
         const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: userText }] }],
+                contents: [{ role: 'user', parts }],
                 systemInstruction: {
                     parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间(北京时间)\n${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch: ${now.getTime()}，请以此为基准进行所有日期时间推导。` + memStr }]
                 },
