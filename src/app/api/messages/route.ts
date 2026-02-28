@@ -77,3 +77,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
+// DELETE: Clear all messages for the current user
+export async function DELETE(request: Request) {
+    try {
+        const userId = await getVerifiedUserIdFromCookie(request);
+        if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+
+        const { env } = await getCloudflareContext();
+        const db = getDb(env.DB);
+
+        await db.delete(messages).where(eq(messages.userId, userId));
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}

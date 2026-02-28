@@ -267,7 +267,7 @@
 
 - Mobile UI Optimization: Added extra bottom padding to the main layout to prevent mobile browser navigation bar overlap. Simplified dashboard tool cards by hiding descriptions on small screens and significantly enlarged the AI Command Center and Fast Idea Logger interactive buttons (especially the microphone recording button) for better touch usability.
 
-- Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (�ⲿ���ܽӿ�) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (ʹ�ð���) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
+- Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (�ⲿ���ܽӿ�) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (ʹ�ð���) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
 
 - Navigation Synergy: Synchronized the main Dashboard grid and the lateral Sidebar to feature the exact same six menu items in the same logical order (Dashboard, Ideas, Polls, Scheduler, External APIs, Settings, Help). This resolves navigational discrepancies and establishes a coordinated user experience across both interfaces.
 
@@ -288,26 +288,32 @@
   - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 /api/external-workflow 路由供 Web 端直接调用，将 AI 返回的 trigger_external_workflow 行动桥接到后端的 n8n 集成系统。
 
 ### 2026-02-28: External Interface Center & n8n Automation Integration
-- 浣撶郴璁剧疆 Settings 鎵╁睍: 鍦?`api/settings/route.ts` 涓?`settings/page.tsx` 涓柊澧炰簡绠＄悊鍛樹笓灞炵殑 integrations 閰嶇疆椤癸紝閲囩敤鍙墿灞曠殑 JSON 瀛楁锛岀涓€鏈熸敮鎸侀厤缃?n8n 鑷姩鍖栧钩鍙扮殑 Webhook URL 鍜屽畨鍏ㄩ壌鏉?Token銆?
-- 澶栭儴鎺ュ彛澶х洏 (Dashboard): 灏嗕箣鍓嶇殑 tools/api 鐨勫崰浣嶇鍗囩骇涓烘寮忕殑鎺у埗闈㈡澘锛屽彲浠ュ姩鎬佽鍙栫郴缁熻缃苟鍦?Dashboard 涓婂悜绠＄悊鍛樺睍绀?n8n 鐨勮繛鎺ョ姸鎬佷笌 Webhook 淇℃伅銆?
-- Outbound (Magic-Ball -> n8n) 瑙﹀彂鍣ㄦ敮鎸?
-  - 鍒涘缓浜?`lib/n8n.ts` 涓撻棬澶勭悊鍚?n8n Webhook 鑺傜偣鎺ㄩ€?HTTP POST 鏁版嵁銆?
-  - AI Agent 鑳藉姏鎵╁睍: 淇敼浜嗗簳灞傜殑璋冨害寮曟搸 `executeAction.ts` 鍙婂叾绯荤粺 Prompt锛岃祴浜?AI 鍏ㄦ柊鍔ㄤ綔鎸囦护 `trigger_external_workflow`銆傜幇鍦ㄦ棤璁烘槸瀹氭椂浠诲姟杩樻槸鎵嬪姩鑱婂ぉ锛屽彧瑕佹寚浠ゅ榻愶紝AI 鍗冲彲鏍规嵁涓婁笅鏂囦富鍔ㄥ喅鏂皟鐢?n8n 瑙﹀彂鎵╁睍搴旂敤銆?
-- Inbound (n8n -> Magic-Ball) Webhook 鏀寔:
-  - 鏂板寮€鏀惧洖璋冪綉鍏?`api/webhooks/n8n/route.ts`銆傚綋 n8n 渚ф墽琛屽畬鑰楁椂鑷姩鍖栦换鍔″悗锛屽彲閫氳繃璇ユ帴鍙ｆ惡鏁版嵁鍥炲啓銆?
-  - 鎸囦护鍐呮牳娉ㄥ叆: 浼犲叆鐨勫悎娉曟暟鎹彲浠ョ洿鎺ュ湪鍚庡彴瑙﹀彂瀹屾暣鐨?`executeAction`銆?
+- 体系设置 Settings 扩展: 在 `api/settings/route.ts` 与 `settings/page.tsx` 中新增了管理员专属的 integrations 配置项，采用可扩展的 JSON 字段，第一期支持配置 n8n 自动化平台的 Webhook URL 和安全鉴权 Token。
+- 外部接口大盘 (Dashboard): 将之前的 tools/api 的占位符升级为正式的控制面板，可以动态读取系统设置并在 Dashboard 上向管理员展示 n8n 的连接状态与 Webhook 信息。
+- Outbound (Magic-Ball -> n8n) 触发器支持:
+  - 创建了 `lib/n8n.ts` 专门处理向 n8n Webhook 节点推送 HTTP POST 数据。
+  - AI Agent 能力扩展: 修改了底层的调度引擎 `executeAction.ts` 及其系统 Prompt，赋予 AI 全新动作指令 `trigger_external_workflow`。现在无论是定时任务还是手动聊天，只要指令对齐，AI 即可根据上下文主动决断调用 n8n 触发扩展应用。
+- Inbound (n8n -> Magic-Ball) Webhook 支持:
+  - 新增开放回调网关 `api/webhooks/n8n/route.ts`。当 n8n 侧执行完耗时自动化任务后，可通过该接口携数据回写。
+  - 指令内核注入: 传入的合法数据可以直接在后台触发完整的 `executeAction`。
 
-- **AI Agent 璋冨害鑳藉姏寮哄寲 (Bugfix)**:
-  - 淇浜嗕富瀵硅瘽绐楀彛 (Chat UI) 涓?AI 涓嶇煡閬撹嚜宸辨嫢鏈夎皟鐢ㄥ閮ㄦ娊璞″伐鍏?(trigger_external_workflow) 鐨勮兘鍔涚己闄枫€?
-  - 鍦ㄧ郴缁熺殑鑱婂ぉ鎸囦护瑙ｆ瀽鍣ㄦ牳蹇?Prompt 鍐咃紝涓哄閮ㄨ嚜鍔ㄥ寲鎿嶄綔鍐欏叆浜嗗己鍒剁殑涓ユ牸 Payload JSON 楠ㄦ灦缁撴瀯銆?
-  - 淇浜嗕富瀵硅瘽绐楀彛鍝嶅簲澶栭儴鎸傝浇娴佺▼鏃剁己灏戝鐞嗙鐐圭殑闂锛氭柊寤轰簡 `/api/external-workflow` 璺敱渚?Web 绔洿鎺ヨ皟鐢紝灏?AI 杩斿洖鐨?`trigger_external_workflow` 琛屽姩妗ユ帴鍒板悗绔殑 n8n 闆嗘垚绯荤粺銆?
+- **AI Agent 调度能力强化 (Bugfix)**:
+  - 修复了主对话窗口 (Chat UI) 中 AI 不知道自己拥有调用外部抽象工具 (trigger_external_workflow) 的能力缺陷。
+  - 在系统的聊天指令解析器核心 Prompt 内，为外部自动化操作写入了强制的严格 Payload JSON 骨架结构。
+  - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 `/api/external-workflow` 路由供 Web 端直接调用，将 AI 返回的 `trigger_external_workflow` 行动桥接到后端的 n8n 集成系统。
 
-### 2026-02-28: n8n 鑷姩鍖栨墿灞曟灦鏋勫挩璇?
-- 鎵╁睍鎬ф帰璁細纭浜?n8n 宸ヤ綔娴佺殑鈥滀竴瀵瑰鈥濊兘鍔涖€傚崟涓?Webhook 鑺傜偣鍙互閫氳繃锛?
-  - **鍒嗘敮 (Branching)**: 鐩存帴杩炴帴澶氫釜鍚庣画鑺傜偣瀹炵幇骞惰瑙﹀彂銆?
-  - **閫昏緫鍒ゆ柇 (If/Switch)**: 鏍规嵁浼犲叆鏁版嵁鐨?Payload 鏅鸿兘璺敱鍒颁笉鍚岀殑澶勭悊璺緞銆?
-  - **妯″潡鍖栬В鑰?*: 瀵逛簬澶嶆潅鍔熻兘锛屽缓璁娇鐢?`Execute Workflow` 鑺傜偣璋冪敤瀛愭祦绋嬶紝淇濇寔涓?Webhook 鍏ュ彛绠€娲佷笖鏄撲簬缁存姢銆?
+### 2026-02-28: n8n 自动化扩展架构咨询
+- 扩展性探讨：确认了 n8n 工作流的“一对多”能力。单个 Webhook 节点可以通过：
+  - **分支 (Branching)**: 直接连接多个后续节点实现并行触发。
+  - **逻辑判断 (If/Switch)**: 根据传入数据的 Payload 智能路由到不同的处理路径。
+  - **模块化解耦**: 对于复杂功能，建议使用 `Execute Workflow` 节点调用子流程，保持主 Webhook 入口简洁且易于维护。
 
-### 2026-02-28: n8n 閭欢鍙戦€?Payload 瑙勮寖
-- 鎺ュ彛瀵归綈锛氳创鍑轰簡 AI Agent 瑙﹀彂閭欢鍙戦€佺殑涓ユ牸 JSON 缁撴瀯銆?
-- 鑷姩鍖栧鎺ワ細鏄庣‘浜?payload 瀛楁锛坱o, subject, body锛変笌 n8n 閭欢鑺傜偣鐨勬槧灏勫叧绯汇€?
+### 2026-02-28: n8n 邮件发送 Payload 规范
+- 接口对齐：贴出了 AI Agent 触发邮件发送的严格 JSON 结构。
+- 自动化对接：明确了 payload 字段（to, subject, body）与 n8n 邮件节点的映射关系。
+
+### 2026-02-28: AI 指令中心持久化清空
+- 逻辑修复：修复了“清空对话”仅清除前端缓存而未同步数据库的 Bug。
+- 后端扩展：在 `/api/messages` 中新增了 `DELETE` 接口以支持按用户清空历史。
+- 前端同步：将 `AICommandCenter` 的清空动作改为异步 API 调用，确保刷新后对话不再复现。
+

@@ -348,8 +348,13 @@ function AICommandCenter() {
     }
   }
 
-  const clearChat = () => {
+  const clearChat = async () => {
     setMessages([])
+    try {
+      await fetch('/api/messages', { method: 'DELETE' })
+    } catch (err) {
+      console.error('Failed to clear chat history:', err)
+    }
   }
 
   return (
