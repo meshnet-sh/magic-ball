@@ -88,10 +88,12 @@ export default function SettingsPage() {
         try {
             if (isAdmin) {
                 await saveSetting("gemini_api_key", geminiKey)
-                await saveSetting("integrations", JSON.stringify({
-                    n8n: { url: n8nUrl, token: n8nToken }
-                }))
             }
+            // Integrations are now per-user
+            await saveSetting("integrations", JSON.stringify({
+                n8n: { url: n8nUrl, token: n8nToken }
+            }))
+
             await saveSetting("gemini_model", geminiModel)
             await saveSetting("feishu_open_id", feishuOpenId)
             setSaved(true)
@@ -131,15 +133,13 @@ export default function SettingsPage() {
                     <Brain size={16} /> 个性化与 AI 参数
                 </button>
                 {isAdmin && (
-                    <>
-                        <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                            <ShieldAlert size={16} /> 后台管理 (Admin)
-                        </button>
-                        <button onClick={() => setActiveTab("integrations")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "integrations" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                            <Globe size={16} /> 外部集成
-                        </button>
-                    </>
+                    <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                        <ShieldAlert size={16} /> 后台管理 (Admin)
+                    </button>
                 )}
+                <button onClick={() => setActiveTab("integrations")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "integrations" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                    <Globe size={16} /> 外部集成
+                </button>
             </div>
 
             {/* Tab content */}
@@ -216,7 +216,7 @@ export default function SettingsPage() {
                 )}
 
                 {/* ===== INTEGRATIONS TAB ===== */}
-                {activeTab === "integrations" && isAdmin && (
+                {activeTab === "integrations" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 max-w-lg">
                         <div>
                             <h2 className="text-base font-semibold mb-1">系统集成配置</h2>

@@ -43,15 +43,7 @@ export default function ApiDashboardPage() {
         return <div className="flex h-full items-center justify-center text-muted-foreground animate-pulse">加载中...</div>;
     }
 
-    if (!isAdmin) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full min-h-[70vh] w-full max-w-2xl mx-auto px-4 text-center">
-                <ShieldAlert size={48} className="text-destructive mb-4 opacity-80" />
-                <h1 className="text-2xl font-bold mb-2">无权访问</h1>
-                <p className="text-muted-foreground">外部接口中心包含敏感的系统级配置，仅管理员可见。</p>
-            </div>
-        );
-    }
+    // Removed admin check to allow all users to access their integration dashboard.
 
     return (
         <div className="flex flex-col h-full w-full max-w-5xl mx-auto p-4 md:p-6 lg:p-8 animate-in fade-in zoom-in-95 duration-500">

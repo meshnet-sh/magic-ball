@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { executeAction } from '@/lib/executeAction';
 
-const ADMIN_EMAIL = 'meshnet@163.com';
-
-export async function POST(request: Request) {
+export async function POST(request: Request, { params }: { params: { userId: string } }) {
     try {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
@@ -17,13 +15,18 @@ export async function POST(request: Request) {
         // either via `Authorization: Bearer <token>` or `x-n8n-token: <token>` header.
         // If the admin did not set a token, we allow open access (though not recommended).
 
-        const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
-        if (!adminUser) {
-            return NextResponse.json({ success: false, error: 'Admin user not found' }, { status: 500 });
+        const userId = params.userId;
+        if (!userId) {
+            return NextResponse.json({ success: false, error: 'User ID is missing from route' }, { status: 400 });
+        }
+
+        const targetUser = await db.select().from(users).where(eq(users.id, userId)).get();
+        if (!targetUser) {
+            return NextResponse.json({ success: false, error: 'Target user not found' }, { status: 404 });
         }
 
         const integrationsSetting = await db.select().from(userSettings)
-            .where(eq(userSettings.key, "integrations"))
+            .where(and(eq(userSettings.userId, userId), eq(userSettings.key, "integrations")))
             .get();
 
         let n8nToken = null;
@@ -61,7 +64,7 @@ export async function POST(request: Request) {
         // Processing: We allow the inbound webhook to trigger our core `executeAction` Engine !
         // For example, `{ "action": "create_idea", "content": "Scraped data..." }`
         if (payload && payload.action) {
-            const result = await executeAction(db, adminUser.id, payload);
+            const result = await executeAction(db, targetUser.id, payload);
             return NextResponse.json({ success: result.ok, data: result.message });
         }
 
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
             content: `【n8n 回调数据】\n${contentStr}`,
             tags: ['n8n', 'webhook']
         };
-        const result = await executeAction(db, adminUser.id, fallbackCmd);
+        const result = await executeAction(db, targetUser.id, fallbackCmd);
 
         return NextResponse.json({ success: true, received: true, fallbackResult: result.message });
     } catch (error: any) {

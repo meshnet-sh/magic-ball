@@ -1,19 +1,11 @@
 import { getDb } from '@/db/index';
 import { userSettings, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
-const ADMIN_EMAIL = 'meshnet@163.com';
-
-export async function triggerN8nWorkflow(db: ReturnType<typeof getDb>, eventName: string, payload: any = {}) {
-    // 1. Get Admin User ID
-    const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
-    if (!adminUser) {
-        throw new Error("Admin user not found, cannot trigger n8n");
-    }
-
-    // 2. Load globally saved integrations config
+export async function triggerN8nWorkflow(db: ReturnType<typeof getDb>, userId: string, eventName: string, payload: any = {}) {
+    // 1. Load user-specific integrations config
     const integrationsSetting = await db.select().from(userSettings)
-        .where(eq(userSettings.key, "integrations"))
+        .where(and(eq(userSettings.userId, userId), eq(userSettings.key, "integrations")))
         .get();
 
     if (!integrationsSetting) {

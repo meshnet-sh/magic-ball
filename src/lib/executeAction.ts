@@ -263,7 +263,7 @@ ${contextParts.join('\n\n') || '(无上下文数据)'}
 
             case 'trigger_external_workflow': {
                 try {
-                    await triggerN8nWorkflow(db, cmd.event || 'default_event', cmd.payload || {});
+                    await triggerN8nWorkflow(db, userId, cmd.event || 'default_event', cmd.payload || {});
                     return { ok: true, message: `🚀 已触发外部自动化工作流: ${cmd.event || 'default_event'}` };
                 } catch (e: any) {
                     return { ok: false, message: `❌ 触发外部工作流失败: ${e.message}` };
