@@ -441,6 +441,27 @@ export async function saveSystemMessage(
         source,
         createdAt: Date.now(),
     });
+
+    // Forward to Feishu if bound
+    try {
+        const feishuSetting = await db.select().from(userSettings)
+            .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
+        if (feishuSetting.length > 0) {
+            const { getAccessToken } = await import('@/lib/feishu');
+            const token = await getAccessToken();
+            await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    receive_id: feishuSetting[0].value,
+                    content: JSON.stringify({ text: `[系统回复]\n${content}` }),
+                    msg_type: 'text',
+                }),
+            });
+        }
+    } catch (e) {
+        console.error("Failed to forward system message to Feishu:", e);
+    }
 }
 
 /**

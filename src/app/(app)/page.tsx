@@ -366,8 +366,22 @@ function AICommandCenter() {
         </div>
         <span className="text-sm font-semibold">AI 指令中心</span>
         <span className="text-[10px] text-muted-foreground">多轮对话 · 语音/文字</span>
+        <button onClick={() => {
+          setIsProcessing(true)
+          fetch('/api/messages').then(r => r.json()).then(data => {
+            if (data.success && data.data) {
+              setMessages(data.data.map((m: any) => ({
+                role: m.source === 'user' ? 'user' : 'assistant',
+                text: m.content || '',
+                status: 'success'
+              })))
+            }
+          }).finally(() => setIsProcessing(false))
+        }} className="ml-auto text-muted-foreground hover:text-primary p-1 transition-all" title="同步最新消息 (如自动化流返回的结果)">
+          <RotateCcw size={14} className={isProcessing ? "animate-spin text-primary" : ""} />
+        </button>
         {messages.length > 0 && (
-          <button onClick={clearChat} className="ml-auto text-muted-foreground hover:text-foreground p-1" title="清空对话">
+          <button onClick={clearChat} className="text-muted-foreground hover:text-red-400 p-1 transition-all" title="清空对话">
             <Trash2 size={14} />
           </button>
         )}
