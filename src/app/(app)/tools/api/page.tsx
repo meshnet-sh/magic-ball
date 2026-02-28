@@ -92,7 +92,7 @@ export default function ApiDashboardPage() {
                             <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 text-xs mb-3">
                                 <span className="block font-semibold mb-1 text-foreground">📥 入站 (n8n -{'>'} Webhook)</span>
                                 <code className="text-primary break-all block select-all font-mono">
-                                    https://[您的域名]/api/webhooks/n8n/{currentUserId}
+                                    {typeof window !== "undefined" ? window.location.origin : "https://你的域名"}/api/webhooks/n8n/{currentUserId}
                                 </code>
                             </div>
                         )}
