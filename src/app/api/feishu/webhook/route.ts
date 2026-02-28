@@ -77,15 +77,15 @@ export async function POST(request: Request) {
         const messageType = event?.message?.message_type;
         const messageId = event?.message?.message_id;
 
-        // Only handle text, image, and audio messages
-        const validTypes = ['text', 'image', 'audio'];
+        // Only handle text, image, audio, and post (rich text) messages
+        const validTypes = ['text', 'image', 'audio', 'post'];
         if (!validTypes.includes(messageType) || !messageId) {
             return NextResponse.json({ code: 0 });
         }
 
         // Extract text content and potential media
         let userText = '';
-        let mediaPart: { inlineData: { mimeType: string, data: string } } | null = null;
+        const mediaParts: Array<{ inlineData: { mimeType: string, data: string } }> = [];
 
         try {
             const content = JSON.parse(event.message.content);
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
                     const { downloadResource } = await import('@/lib/feishu');
                     const { buffer, mimeType } = await downloadResource(messageId, imageKey, 'image');
                     const base64Data = Buffer.from(buffer).toString('base64');
-                    mediaPart = { inlineData: { mimeType, data: base64Data } };
+                    mediaParts.push({ inlineData: { mimeType, data: base64Data } });
                     userText = "我发了一张图片，请分析或提取其中的核心想法，如果包含待办或意图，请转为相应的操作指令。";
                 }
             } else if (messageType === 'audio') {
@@ -107,15 +107,50 @@ export async function POST(request: Request) {
                     const { downloadResource } = await import('@/lib/feishu');
                     const { buffer, mimeType } = await downloadResource(messageId, fileKey, 'file');
 
-                    // 飞书原生的语音多为 OPUS，转交给 Gemini 时声明为兼容性更好的 ogg 或 aac 容器格式
                     let finalMimeType = mimeType;
                     if (mimeType === 'application/octet-stream' || mimeType.includes('opus') || mimeType.includes('amr')) {
-                        finalMimeType = 'audio/ogg'; // Gemini 2.0 highly compatible with ogg/opus 
+                        finalMimeType = 'audio/ogg';
                     }
 
                     const base64Data = Buffer.from(buffer).toString('base64');
-                    mediaPart = { inlineData: { mimeType: finalMimeType, data: base64Data } };
+                    mediaParts.push({ inlineData: { mimeType: finalMimeType, data: base64Data } });
                     userText = "我发了一段语音，请分析语音内容并执行相应的指令。";
+                }
+            } else if (messageType === 'post') {
+                // Post messages contain rich text content in content.post.zh_cn.content (array of arrays)
+                const textNodes: string[] = [];
+                const parsedLocale = content.zh_cn || content.en_us || content.post?.zh_cn || content.post?.en_us;
+
+                if (parsedLocale && Array.isArray(parsedLocale.content)) {
+                    for (const line of parsedLocale.content) {
+                        for (const element of line) {
+                            if (element.tag === 'text' && element.text) {
+                                textNodes.push(element.text);
+                            } else if (element.tag === 'img' && element.image_key) {
+                                const { downloadResource } = await import('@/lib/feishu');
+                                const { buffer, mimeType } = await downloadResource(messageId, element.image_key, 'image');
+                                const base64Data = Buffer.from(buffer).toString('base64');
+                                mediaParts.push({ inlineData: { mimeType, data: base64Data } });
+                            } else if (element.tag === 'media' && element.file_key) {
+                                const { downloadResource } = await import('@/lib/feishu');
+                                const { buffer, mimeType } = await downloadResource(messageId, element.file_key, 'file');
+
+                                let finalMimeType = mimeType;
+                                if (mimeType === 'application/octet-stream' || mimeType.includes('opus') || mimeType.includes('amr')) {
+                                    finalMimeType = 'audio/ogg';
+                                }
+
+                                const base64Data = Buffer.from(buffer).toString('base64');
+                                mediaParts.push({ inlineData: { mimeType: finalMimeType, data: base64Data } });
+                            }
+                        }
+                    }
+                }
+                userText = textNodes.join(' ').trim();
+
+                // Provide fallback prompt if post was just media without text
+                if (!userText && mediaParts.length > 0) {
+                    userText = "请分析我发送的媒体内容，提取其中的意图或待办。";
                 }
             }
         } catch (e) {
@@ -168,7 +203,9 @@ export async function POST(request: Request) {
 
         const parts: any[] = [];
         if (userText) parts.push({ text: userText });
-        if (mediaPart) parts.push(mediaPart);
+        for (const mp of mediaParts) {
+            parts.push(mp);
+        }
 
         const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
