@@ -68,3 +68,15 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ authenticated: false });
 }
+
+export async function DELETE() {
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('auth_session', '', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 0 // Clear the cookie
+    });
+    return response;
+}

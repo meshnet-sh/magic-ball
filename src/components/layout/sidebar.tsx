@@ -14,6 +14,7 @@ import {
     ChevronsLeft,
     ChevronsRight,
     Sparkles,
+    LogOut
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -114,6 +115,23 @@ export function Sidebar() {
                             </Link>
                         )
                     })}
+
+                    <div className="pt-4 mt-4 border-t border-border/50">
+                        <button
+                            onClick={async () => {
+                                await fetch('/api/auth', { method: 'DELETE' })
+                                window.location.href = '/login'
+                            }}
+                            className={cn(
+                                "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all group overflow-hidden text-red-500/80 hover:bg-red-500/10 hover:text-red-500 border border-transparent",
+                                !isSidebarOpen && "justify-center px-0 py-3"
+                            )}
+                            title={!isSidebarOpen ? "退出登录" : undefined}
+                        >
+                            <LogOut size={18} className="shrink-0 transition-transform group-hover:-translate-x-1" />
+                            {isSidebarOpen && <span className="tracking-wide">退出登录</span>}
+                        </button>
+                    </div>
                 </nav>
             </aside>
         </>
