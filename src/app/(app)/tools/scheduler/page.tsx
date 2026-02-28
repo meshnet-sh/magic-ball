@@ -255,9 +255,17 @@ export default function SchedulerPage() {
                                                 {isPaused ? <Play size={14} /> : <Pause size={14} />}
                                             </button>
                                         )}
-                                        <button onClick={() => deleteTask(task.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400" title="删除">
-                                            <Trash2 size={14} />
-                                        </button>
+                                        {deletingId === task.id ? (
+                                            <div className="flex gap-2 text-xs items-center">
+                                                <span className="text-destructive font-medium">确认删除?</span>
+                                                <button onClick={() => deleteTask(task.id)} className="text-destructive hover:underline">是</button>
+                                                <button onClick={() => setDeletingId(null)} className="text-muted-foreground hover:underline">否</button>
+                                            </div>
+                                        ) : (
+                                            <button onClick={() => setDeletingId(task.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400" title="删除">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

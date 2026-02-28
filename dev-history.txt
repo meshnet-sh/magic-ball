@@ -325,3 +325,6 @@
 ### 2026-02-28: n8n Webhook 500 é”™è¯¯æŽ’æŸ¥ (Switch èŠ‚ç‚¹)
 - é”™è¯¯è¯Šæ–­ï¼šåˆ†æžäº† "No item to return was found" é”™è¯¯ï¼Œç¡®è®¤æ˜¯å› ä¸º n8n Webhook èŠ‚ç‚¹çš„å“åº”æ¨¡å¼è®¾ä¸º "When Last Node Finishes"ï¼Œä½† Switch é€»è¾‘å¯¼è‡´æ‰§è¡Œè·¯å¾„æœªè¿”å›žæœ‰æ•ˆæ•°æ®ã€‚
 - ä¿®å¤å»ºè®®ï¼šå»ºè®®ç”¨æˆ·å°† Webhook å“åº”æ¨¡å¼æ”¹ä¸º "On Received"ï¼Œæˆ–åœ¨æ¯ä¸ªåˆ†æ”¯æœ«å°¾æ·»åŠ  "Respond to Webhook" èŠ‚ç‚¹ã€‚
+2 0 2 6 - 0 2 - 2 8 :   [ ¶g„gÍ‘„gNSOŒšOS]   \Qu˜ïzŒTÞ˜fNïzTêìrËz„v  A I   Ðc:yÍ‹ÿS Y S T E M _ P R O M P T 	ÿß~ N½b»y0R  s r c / l i b / e x e c u t e A c t i o n . t s   „v  g e t S y s t e m P r o m p t ( )   -Nÿž[°sÌSïz  A I   ý€›R„vŒ[hQTekÿîOY†NÞ˜fNïz:1Y  n 8 n   ®öNæ‰ÑSý€›R„vî•˜˜0Töeÿß~ N†NhQ@\ Rd–¤N’NSOŒšÿ(W 
+ åezŒ¦^å]wQ-NeˆPŸ†N:1Y„v0nx¤‹ Rd–ÿ0ŒN!knx¤‹¯s‚‚ÿv^\ê•õ_{°‹(Wûy¨Rïzæ‰xdO\N„v Rd–	c®”Œte:N8^{š>f:yÿã‰³Q†Nàe Ÿh  h o v e r   ü[ô„v¤N’Nœ–x0 
+ 

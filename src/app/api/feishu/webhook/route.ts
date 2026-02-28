@@ -4,43 +4,8 @@ import { getDb } from '@/db/index';
 import { userSettings, ideas, scheduledTasks } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { replyMessage } from '@/lib/feishu';
-import { executeAction, loadMemories, saveMemory } from '@/lib/executeAction';
+import { executeAction, loadMemories, saveMemory, getSystemPrompt } from '@/lib/executeAction';
 import { feishuEvents } from '@/db/schema';
-
-const SYSTEM_PROMPT = `你是 Magic Ball 工具箱的 AI 助手。用户通过飞书与你对话，你需要理解意图并返回**严格合法的 JSON 命令**。
-
-# 可用插件
-
-## 1. 闪念笔记
-{"action": "create_idea", "content": "笔记内容", "tags": ["标签"]}
-
-## 2. 投票收集
-{"action": "create_poll", "title": "标题", "description": null, "type": "single_choice", "options": ["选项1", "选项2"], "accessCode": null}
-type: "single_choice" | "multi_choice" | "open_text"
-
-## 3. 日程调度
-- **交互策略**: 只要用户描述的时间意图相对清晰，请直接返回 schedule_task 和一个简短的 chat 进行组合确认回复。仅在时间完全无法推断时才单用 chat 询问。
-{"action": "schedule_task", "title": "任务名", "triggerAt": epoch毫秒, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "内容"}}
-recurrence: null | "minutes:X" | "hours:X" | "daily" | "weekly" | "monthly"
-scheduledAction: 任何合法的 action JSON (可嵌套 ai_agent 唤醒AI)
-分钟级示例: "每5分钟提醒我" → recurrence: "minutes:5"
-
-## 4. 页面导航
-{"action": "navigate", "path": "/tools/ideas"}
-
-## 5. 通用对话
-{"action": "chat", "message": "回复内容"}
-
-# 输出格式
-返回: {"transcript": null, "actions": [{"action": "...", ...}]}
-actions 是数组，多个任务拆分为多个元素。
-
-# 规则
-1. 只返回合法 JSON，禁止 JSON 外的文字
-2. 多个任务全部拆分为独立 action
-3. tags 不带 # 号
-4. 用中文回复
-`;
 
 // POST handler for Feishu webhook events
 export async function POST(request: Request) {
@@ -222,7 +187,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents: [{ role: 'user', parts }],
                 systemInstruction: {
-                    parts: [{ text: SYSTEM_PROMPT + `\n\n# 当前时间(北京时间)\n${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch: ${now.getTime()}，请以此为基准进行所有日期时间推导。` + memStr }]
+                    parts: [{ text: getSystemPrompt() + `\n\n# 当前时间(北京时间)\n${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch: ${now.getTime()}，请以此为基准进行所有日期时间推导。` + memStr }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',

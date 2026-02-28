@@ -29,7 +29,7 @@ function IdeaCard({ idea }: { idea: Idea }) {
                     ) : (
                         <button
                             onClick={() => setIsDeleting(true)}
-                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-muted-foreground hover:text-destructive opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             aria-label="删除记录"
                         >
                             <Trash2 size={14} />
