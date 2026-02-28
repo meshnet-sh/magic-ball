@@ -5,7 +5,7 @@ import { userSettings, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { executeAction } from '@/lib/executeAction';
 
-export async function POST(request: Request, { params }: { params: { userId: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
     try {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
@@ -15,6 +15,7 @@ export async function POST(request: Request, { params }: { params: { userId: str
         // either via `Authorization: Bearer <token>` or `x-n8n-token: <token>` header.
         // If the admin did not set a token, we allow open access (though not recommended).
 
+        const params = await context.params;
         const userId = params.userId;
         if (!userId) {
             return NextResponse.json({ success: false, error: 'User ID is missing from route' }, { status: 400 });
