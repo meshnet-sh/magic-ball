@@ -99,7 +99,7 @@ export async function POST(request: Request) {
                     const { buffer, mimeType } = await downloadResource(messageId, imageKey, 'image');
                     const base64Data = Buffer.from(buffer).toString('base64');
                     mediaParts.push({ inlineData: { mimeType, data: base64Data } });
-                    userText = "我发了一张图片，请分析或提取其中的核心想法，如果包含待办或意图，请转为相应的操作指令。";
+                    userText = "我发了一张图片。请结合我的『上一条发言/要求（见下方记忆）』，从图片中提取相关要素并执行对应的插件指令。如果没有特别指令，请简述图片重点。";
                 }
             } else if (messageType === 'audio') {
                 const fileKey = content.file_key;
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
                     const base64Data = Buffer.from(buffer).toString('base64');
                     mediaParts.push({ inlineData: { mimeType: finalMimeType, data: base64Data } });
-                    userText = "我发了一段语音，请分析语音内容并执行相应的指令。";
+                    userText = "我发了一段语音。请结合我对你的『上一条发言/要求』，综合分析这段语音内容并执行相应指令。";
                 }
             } else if (messageType === 'post') {
                 // Post messages contain rich text content in content.post.zh_cn.content (array of arrays)
