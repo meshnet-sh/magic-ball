@@ -7,11 +7,11 @@ import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale/zh-CN"
 import {
     Settings, ShieldAlert, Brain, Eye, EyeOff, Save, Check,
-    Zap, Vote, Users, ChevronDown, ChevronUp
+    Zap, Vote, Users, ChevronDown, ChevronUp, Globe, Link2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-type Tab = "admin" | "ai"
+type Tab = "admin" | "ai" | "integrations"
 
 const GEMINI_MODELS = [
     { value: "gemini-pro-latest", label: "Pro · 最前沿", desc: "始终指向最强推理能力模型" },
@@ -32,6 +32,10 @@ export default function SettingsPage() {
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [isAdmin, setIsAdmin] = useState(false)
+
+    // Integrations State
+    const [n8nUrl, setN8nUrl] = useState("")
+    const [n8nToken, setN8nToken] = useState("")
 
     // Admin state
     const [adminData, setAdminData] = useState<any>(null)
@@ -62,6 +66,15 @@ export default function SettingsPage() {
                 if (data.data.gemini_api_key) setGeminiKey(data.data.gemini_api_key)
                 if (data.data.gemini_model) setGeminiModel(data.data.gemini_model)
                 if (data.data.feishu_open_id) setFeishuOpenId(data.data.feishu_open_id)
+                if (data.data.integrations) {
+                    try {
+                        const parsed = JSON.parse(data.data.integrations)
+                        if (parsed.n8n) {
+                            setN8nUrl(parsed.n8n.url || "")
+                            setN8nToken(parsed.n8n.token || "")
+                        }
+                    } catch (e) { console.error("Failed to parse integrations", e) }
+                }
             }
         } catch { }
     }
@@ -73,7 +86,12 @@ export default function SettingsPage() {
     const saveAllSettings = async () => {
         setIsSaving(true)
         try {
-            if (isAdmin) await saveSetting("gemini_api_key", geminiKey)
+            if (isAdmin) {
+                await saveSetting("gemini_api_key", geminiKey)
+                await saveSetting("integrations", JSON.stringify({
+                    n8n: { url: n8nUrl, token: n8nToken }
+                }))
+            }
             await saveSetting("gemini_model", geminiModel)
             await saveSetting("feishu_open_id", feishuOpenId)
             setSaved(true)
@@ -113,9 +131,14 @@ export default function SettingsPage() {
                     <Brain size={16} /> 个性化与 AI 参数
                 </button>
                 {isAdmin && (
-                    <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                        <ShieldAlert size={16} /> 后台管理 (Admin)
-                    </button>
+                    <>
+                        <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                            <ShieldAlert size={16} /> 后台管理 (Admin)
+                        </button>
+                        <button onClick={() => setActiveTab("integrations")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "integrations" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                            <Globe size={16} /> 外部集成
+                        </button>
+                    </>
                 )}
             </div>
 
@@ -182,6 +205,48 @@ export default function SettingsPage() {
                                         <p className="text-[11px] text-muted-foreground mt-0.5">{m.desc}</p>
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* Save button */}
+                        <Button onClick={saveAllSettings} disabled={isSaving} className="w-full rounded-xl py-5 gap-2">
+                            {saved ? <><Check size={16} /> 已保存</> : <><Save size={16} /> {isSaving ? "保存中..." : "保存配置"}</>}
+                        </Button>
+                    </div>
+                )}
+
+                {/* ===== INTEGRATIONS TAB ===== */}
+                {activeTab === "integrations" && isAdmin && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 max-w-lg">
+                        <div>
+                            <h2 className="text-base font-semibold mb-1">系统集成配置</h2>
+                            <p className="text-xs text-muted-foreground">配置外部 Webhook、API 等系统的接入参数。</p>
+                        </div>
+
+                        {/* n8n */}
+                        <div className="space-y-4 p-4 rounded-xl border border-border/50 bg-secondary/10">
+                            <div className="flex items-center gap-2 font-semibold">
+                                <Link2 size={18} className="text-primary" /> n8n 自动化平台
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Webhook URL</label>
+                                <input
+                                    type="text"
+                                    value={n8nUrl}
+                                    onChange={e => setN8nUrl(e.target.value)}
+                                    placeholder="https://n8n.yourserver.com/webhook/..."
+                                    className="w-full bg-background border border-border/50 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-primary/50"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Auth Token (可选)</label>
+                                <input
+                                    type="password"
+                                    value={n8nToken}
+                                    onChange={e => setN8nToken(e.target.value)}
+                                    placeholder="用于 n8n 侧鉴权"
+                                    className="w-full bg-background border border-border/50 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-primary/50"
+                                />
                             </div>
                         </div>
 

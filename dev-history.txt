@@ -270,3 +270,13 @@
 - Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (�ⲿ���ܽӿ�) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (ʹ�ð���) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
 
 - Navigation Synergy: Synchronized the main Dashboard grid and the lateral Sidebar to feature the exact same six menu items in the same logical order (Dashboard, Ideas, Polls, Scheduler, External APIs, Settings, Help). This resolves navigational discrepancies and establishes a coordinated user experience across both interfaces.
+
+### 2026-02-28: External Interface Center & n8n Automation Integration
+- 体系化 Settings 扩展: 在 api/settings/route.ts 与 settings/page.tsx 中新增了管理员专属的 integrations 配置项，采用可扩展的 JSON 字段，第一期支持配置 n8n 自动化平台的 Webhook URL 和安全鉴权 Token。
+- 外部接口大盘 (Dashboard): 将之前 tools/api 的占位符升级为正式的控制面板，可以动态读取系统设置并在 Dashboard 上向管理员展示 n8n 的连接状态与 Webhook 信息。
+- Outbound (Magic-Ball -> n8n) 触发器支持:
+  - 创建了 lib/n8n.ts 专门处理向 n8n Webhook 节点推送 HTTP POST 数据。
+  - AI Agent 能力扩展: 修改了底层的调度引擎 executeAction.ts 及其系统 Prompt，赋予 AI 全新动作指令 trigger_external_workflow。现在无论是定时任务还是手动聊天，只要指令对齐，AI 即可根据上下文主动决断调用 n8n 触发扩展应用。
+- Inbound (n8n -> Magic-Ball) Webhook 支持:
+  - 新增开放回调网关 api/webhooks/n8n/route.ts。当 n8n 侧执行完耗时自动化任务后，可通过该接口携数据回写。
+  - 指令内核注入: 传入的合法数据可以直接在后台触发完整的 executeAction。

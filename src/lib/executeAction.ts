@@ -1,6 +1,7 @@
 import { getDb } from '@/db/index';
 import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollOptions, users } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { triggerN8nWorkflow } from './n8n';
 
 export interface ActionResult {
     ok: boolean;
@@ -157,6 +158,7 @@ export async function executeAction(
 - {"action": "create_idea", "content": "...", "tags": [...]}
 - {"action": "reminder", "message": "..."}
 - {"action": "schedule_task", "title": "...", "triggerAt": epoch_ms, "recurrence": "...", "scheduledAction": {...}}
+- {"action": "trigger_external_workflow", "event": "...", "payload": {"key": "value"}}
 - {"action": "chat", "message": "..."}
 
 返回格式: {"actions": [...]}
@@ -257,6 +259,15 @@ ${contextParts.join('\n\n') || '(无上下文数据)'}
 
             case 'chat': {
                 return { ok: true, message: cmd.message || '好的' };
+            }
+
+            case 'trigger_external_workflow': {
+                try {
+                    await triggerN8nWorkflow(db, cmd.event || 'default_event', cmd.payload || {});
+                    return { ok: true, message: `🚀 已触发外部自动化工作流: ${cmd.event || 'default_event'}` };
+                } catch (e: any) {
+                    return { ok: false, message: `❌ 触发外部工作流失败: ${e.message}` };
+                }
             }
 
             default:

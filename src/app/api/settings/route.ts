@@ -9,7 +9,7 @@ import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 const ADMIN_EMAIL = 'meshnet@163.com';
 
 // Keys that are global to the entire system
-const isGlobalSystemKey = (key: string) => key.endsWith('_api_key') || key.endsWith('_secret');
+const isGlobalSystemKey = (key: string) => key.endsWith('_api_key') || key.endsWith('_secret') || key === 'integrations';
 
 // GET: Fetch all settings for the current user
 export async function GET(request: Request) {
