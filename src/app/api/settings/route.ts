@@ -40,7 +40,7 @@ export async function GET(request: Request) {
         // If non-admin needs global settings like 'system_model' we would fetch it from Admin's row here, 
         // but currently we handle API key lookup dynamically in the execution phase.
 
-        return NextResponse.json({ success: true, data: settingsMap, isAdmin });
+        return NextResponse.json({ success: true, data: settingsMap, isAdmin, userId });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

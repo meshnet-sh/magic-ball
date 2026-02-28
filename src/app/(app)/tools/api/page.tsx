@@ -11,6 +11,7 @@ export default function ApiDashboardPage() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [n8nStatus, setN8nStatus] = useState<"connected" | "disconnected">("disconnected");
     const [n8nUrl, setN8nUrl] = useState("");
+    const [currentUserId, setCurrentUserId] = useState("");
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -20,6 +21,7 @@ export default function ApiDashboardPage() {
 
                 if (data.success) {
                     setIsAdmin(data.isAdmin);
+                    setCurrentUserId(data.userId || "");
                     if (data.data.integrations) {
                         try {
                             const parsed = JSON.parse(data.data.integrations);
@@ -85,9 +87,19 @@ export default function ApiDashboardPage() {
                         <p className="text-sm text-muted-foreground mb-4">
                             通过 Webhook 连接 n8n。使用 AI 与该平台进行交互，或允许外部回调写入 Magic-Ball。
                         </p>
+
+                        {currentUserId && (
+                            <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 text-xs mb-3">
+                                <span className="block font-semibold mb-1 text-foreground">📥 入站 (n8n -{'>'} Webhook)</span>
+                                <code className="text-primary break-all block select-all font-mono">
+                                    https://[您的域名]/api/webhooks/n8n/{currentUserId}
+                                </code>
+                            </div>
+                        )}
+
                         {n8nStatus === "connected" && n8nUrl && (
                             <div className="bg-secondary/50 p-3 rounded-lg border border-border/50 text-xs font-mono text-muted-foreground truncate" title={n8nUrl}>
-                                Hook: {n8nUrl}
+                                🚀 出站 (AI -{'>'} n8n): {n8nUrl}
                             </div>
                         )}
                     </div>
