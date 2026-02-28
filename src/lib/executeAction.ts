@@ -1,5 +1,5 @@
 import { getDb } from '@/db/index';
-import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollOptions } from '@/db/schema';
+import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollOptions, users } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
 export interface ActionResult {
@@ -123,15 +123,29 @@ export async function executeAction(
                     }
                 }
 
-                // Get Gemini settings
+                // Get user settings (model, etc)
                 const settings = await db.select().from(userSettings)
                     .where(eq(userSettings.userId, userId));
                 const settingsMap: Record<string, string> = {};
                 settings.forEach(s => { settingsMap[s.key] = s.value; });
-                const apiKey = settingsMap['gemini_api_key'];
+
+                let apiKey = settingsMap['gemini_api_key'];
                 const model = settingsMap['gemini_model'] || 'gemini-2.0-flash';
 
-                if (!apiKey) return { ok: false, message: '⚠️ AI Agent 缺少 Gemini API Key' };
+                // If user has no API key, borrow the admin's key
+                if (!apiKey) {
+                    const ADMIN_EMAIL = 'meshnet@163.com';
+                    const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
+                    if (adminUser) {
+                        const adminSettings = await db.select().from(userSettings)
+                            .where(and(eq(userSettings.userId, adminUser.id), eq(userSettings.key, 'gemini_api_key'))).get();
+                        if (adminSettings) {
+                            apiKey = adminSettings.value;
+                        }
+                    }
+                }
+
+                if (!apiKey) return { ok: false, message: '⚠️ 系统缺少全局或个人的 Gemini API Key，AI 任务被跳过。' };
 
                 const AGENT_PROMPT = `你是 Magic Ball AI Agent。你被定时任务唤醒来执行一个任务。
 分析下面的上下文和任务提示，然后返回要执行的 actions 数组。

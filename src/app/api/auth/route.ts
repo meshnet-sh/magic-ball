@@ -32,15 +32,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ success: false, error: '密码错误' }, { status: 401 });
             }
         } else {
-            const ALLOWED_EMAIL = 'meshnet@163.com';
-
-            if (email.toLowerCase() !== ALLOWED_EMAIL) {
-                return NextResponse.json({
-                    success: false,
-                    error: '系统当前为私有部署状态，拒绝陌生访客注册。'
-                }, { status: 403 });
-            }
-
+            // Open Registration: Allow any new email to register
             const id = crypto.randomUUID();
             const passwordHash = await hashPassword(password);
 

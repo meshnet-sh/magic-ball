@@ -162,34 +162,43 @@ export async function POST(request: Request) {
             return NextResponse.json({ code: 0 });
         }
 
-        // --- Step 4: Process via AI pipeline ---
+        // --- Step 4: Process via AI pipeline (Multi-Tenant) ---
 
-        // Find a user with Gemini API key configured
-        const allSettings = await db.select().from(userSettings)
-            .where(eq(userSettings.key, 'gemini_api_key'));
+        const senderOpenId = event?.sender?.sender_id?.open_id;
+        if (!senderOpenId) {
+            return NextResponse.json({ code: 0 }); // Can't identify sender
+        }
 
-        if (allSettings.length === 0) {
-            await replyMessage(messageId, '⚠️ 还没有配置 Gemini API Key，请在 Magic Ball 设置页面添加。');
+        // 1. Identify User by Feishu Open ID
+        const senderSettings = await db.select().from(userSettings)
+            .where(and(eq(userSettings.key, 'feishu_open_id'), eq(userSettings.value, senderOpenId)));
+
+        if (senderSettings.length === 0) {
+            await replyMessage(messageId, `⚠️ 未绑定账号\n\n欢迎使用 Magic Ball！由于您尚未绑定，系统无法为您提供专属服务。\n\n请前往 Web 端的「系统与AI配置」页面，将您的专属授权码填入下方的飞书绑定框中：\n\n${senderOpenId}`);
             return NextResponse.json({ code: 0 });
         }
 
-        const userId = allSettings[0].userId;
-        const apiKey = allSettings[0].value;
+        const userId = senderSettings[0].userId;
 
-        // Save the sender's Feishu open_id for proactive push (cron notifications)
-        const senderOpenId = event?.sender?.sender_id?.open_id;
-        if (senderOpenId) {
-            const existing = await db.select().from(userSettings)
-                .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
-            if (existing.length === 0) {
-                await db.insert(userSettings).values({
-                    id: crypto.randomUUID(), userId, key: 'feishu_open_id', value: senderOpenId
-                });
-            } else if (existing[0].value !== senderOpenId) {
-                await db.update(userSettings).set({ value: senderOpenId })
-                    .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
-            }
+        // 2. Look up the Admin's Global Gemini API Key for proxy billing
+        const ADMIN_EMAIL = 'meshnet@163.com';
+        const { users } = await import('@/db/schema');
+        const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
+
+        if (!adminUser) {
+            await replyMessage(messageId, '❌ 系统未初始化：找不到管理员账号，无法调用公共算力池。');
+            return NextResponse.json({ code: 0 });
         }
+
+        const apiSettings = await db.select().from(userSettings)
+            .where(and(eq(userSettings.userId, adminUser.id), eq(userSettings.key, 'gemini_api_key'))).get();
+
+        if (!apiSettings || !apiSettings.value) {
+            await replyMessage(messageId, '❌ 系统错误：管理员尚未配置公共 Gemini API Key。');
+            return NextResponse.json({ code: 0 });
+        }
+
+        const apiKey = apiSettings.value;
 
         // Get model preference
         const modelSettings = await db.select().from(userSettings)

@@ -27,9 +27,11 @@ export default function SettingsPage() {
     // AI Settings state
     const [geminiKey, setGeminiKey] = useState("")
     const [geminiModel, setGeminiModel] = useState("gemini-flash-latest")
+    const [feishuOpenId, setFeishuOpenId] = useState("")
     const [showKey, setShowKey] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [isAdmin, setIsAdmin] = useState(false)
 
     // Admin state
     const [adminData, setAdminData] = useState<any>(null)
@@ -56,8 +58,10 @@ export default function SettingsPage() {
             const res = await fetch("/api/settings")
             const data = await res.json()
             if (data.success && data.data) {
+                setIsAdmin(data.isAdmin || false)
                 if (data.data.gemini_api_key) setGeminiKey(data.data.gemini_api_key)
                 if (data.data.gemini_model) setGeminiModel(data.data.gemini_model)
+                if (data.data.feishu_open_id) setFeishuOpenId(data.data.feishu_open_id)
             }
         } catch { }
     }
@@ -69,8 +73,9 @@ export default function SettingsPage() {
     const saveAllSettings = async () => {
         setIsSaving(true)
         try {
-            await saveSetting("gemini_api_key", geminiKey)
+            if (isAdmin) await saveSetting("gemini_api_key", geminiKey)
             await saveSetting("gemini_model", geminiModel)
+            await saveSetting("feishu_open_id", feishuOpenId)
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
         } finally { setIsSaving(false) }
@@ -105,11 +110,13 @@ export default function SettingsPage() {
             {/* Tab bar */}
             <div className="flex border-b border-border/50 mt-2">
                 <button onClick={() => setActiveTab("ai")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "ai" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                    <Brain size={16} /> AI 能力配置
+                    <Brain size={16} /> 个性化与 AI 参数
                 </button>
-                <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                    <ShieldAlert size={16} /> 后台管理
-                </button>
+                {isAdmin && (
+                    <button onClick={() => setActiveTab("admin")} className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2", activeTab === "admin" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                        <ShieldAlert size={16} /> 后台管理 (Admin)
+                    </button>
+                )}
             </div>
 
             {/* Tab content */}
@@ -118,27 +125,47 @@ export default function SettingsPage() {
                 {activeTab === "ai" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 max-w-lg">
                         <div>
-                            <h2 className="text-base font-semibold mb-1">Gemini API 配置</h2>
-                            <p className="text-xs text-muted-foreground">配置 Google Gemini 大模型的 API Key 和模型偏好。后续的 AI 增强功能将基于此配置。</p>
+                            <h2 className="text-base font-semibold mb-1">系统与 AI 配置</h2>
+                            <p className="text-xs text-muted-foreground">设置飞书联通属性以及模型推理偏好。</p>
                         </div>
 
-                        {/* API Key */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">API Key</label>
-                            <div className="relative">
-                                <input
-                                    type={showKey ? "text" : "password"}
-                                    value={geminiKey}
-                                    onChange={e => setGeminiKey(e.target.value)}
-                                    placeholder="AIzaSy..."
-                                    className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 pr-12 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/50"
-                                />
-                                <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                                    {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
+                        {/* API Key (Admin Only) */}
+                        {isAdmin && (
+                            <div className="space-y-2 p-3 rounded-xl border border-primary/20 bg-primary/5">
+                                <label className="text-sm font-medium flex items-center gap-2 text-primary">
+                                    <ShieldAlert size={14} /> 全局 API Key (仅管理员可见)
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showKey ? "text" : "password"}
+                                        value={geminiKey}
+                                        onChange={e => setGeminiKey(e.target.value)}
+                                        placeholder="AIzaSy..."
+                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 pr-12 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/50"
+                                    />
+                                    <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                                        {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">
+                                    此 Key 将作为全局算力池，供所有注册用户在后台消耗。
+                                </p>
                             </div>
-                            <p className="text-[10px] text-muted-foreground">
-                                从 <a href="https://aistudio.google.com/apikey" target="_blank" className="text-primary hover:underline">Google AI Studio</a> 获取 API Key
+                        )}
+
+                        {/* Feishu Bind */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">绑定飞书端机器人</label>
+                            <input
+                                type="text"
+                                value={feishuOpenId}
+                                onChange={e => setFeishuOpenId(e.target.value)}
+                                placeholder="ou_xyz1234..."
+                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                在飞书对机器人说话获取 <b>Open ID</b> 后，填写至此框进行双端联通。<br />
+                                联通后，飞书指令将直接同步至当前账号。
                             </p>
                         </div>
 

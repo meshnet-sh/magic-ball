@@ -253,3 +253,9 @@
 - **多模态能力升级 (2026-02-28 补充)**:
   - 飞书单信源富媒体 (语音与图片): 在 `lib/feishu.ts` 中新增了底层的 `downloadResource` 工具以抓取飞书用户的私聊富媒体附件。同时在 `api/feishu/webhook/route.ts` 放开了对 `image` 及 `audio` 消息类型的拦截，将其二进制 Buffer 转作 base64 `inlineData` 喂给后台底层的 Gemini 2.0 原生多模态解析内核。并在传给大模型前智能推算并强制兼容 ogg/opus 语音容器。
   - 飞书组合型富文本 (`post`) 支持: 由于在移动端发送多选内容的组合结构，或者电脑端发送图文混排，飞书后台均解析为 `post` 收件类型。现已全面支持多元素遍历和并行资源拉取，提取富文本树中的每一段 `text`、`img` 和 `media` (录音) 并打包合并成包含图片、录音及文字的多模态合集再扔给 Gemini。真正实现了随心所欲无缝提意图。
+
+### 2026-02-28: Multi-Tenant Architecture & Feishu Open ID Binding
+- User Registration: Removed the `meshnet@163.com` hardcoded lock in `/api/auth/route.ts` to allow open registration for all visitors, officially moving from a single-user private instance to a multi-tenant platform.
+- Admin Roles & Settings: Defined `meshnet@163.com` as the sole platform Admin. In `/api/settings/route.ts` and the frontend `SettingsPage`, standard users are BLOCKED from viewing or modifying global system variables (like `gemini_api_key`). They can only edit personal settings (like UI timezone, Model Preference, or Feishu Open ID).
+- Multi-User Feishu Bot Routing: Rewrote the Feishu Webhook (`/api/feishu/webhook/route.ts`). Instead of blindly assigning messages to the first user with an API key, it now extracts the sender's `open_id`. It queries the `user_settings` table to dynamically find the correct `userId`. If a user is unregistered or unbound, the bot now replies dynamically with their `open_id` and instructions to bind it via the Web UI.
+- API Key Proxy (Billing): Standard users and background crons (`executeAction.ts`) no longer need their own `gemini_api_key`. The backend now automatically borrows the Admin's (`meshnet@163.com`) API key to process their AI inferences, creating a centralized billing/usage pool while keeping personal data (ideas/polls/memories) strictly sandboxed per user workspace.
