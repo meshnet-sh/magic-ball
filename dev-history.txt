@@ -317,7 +317,11 @@
 - 后端扩展：在 `/api/messages` 中新增了 `DELETE` 接口以支持按用户清空历史。
 - 前端同步：将 `AICommandCenter` 的清空动作改为异步 API 调用，确保刷新后对话不再复现。
 
+### 2026-02-28: n8n 回调消息持久化支持
+- 体验升级：修改了 `api/webhooks/n8n/[userId]/route.ts` 的行为。现在当外部工作流通过 HTTP POST 传回 `{"action": "chat"}` 指令时，系统会将该消息显式存入用户的 `messages` 数据表，身份记为 `system`。在此修复前，外部回调的文本只会在 HTTP 响应中被丢弃，现在用户只需刷新 Dashboard 即可看到自动化流程发回的聊天通知。
 
-### 2026-02-28: n8n Webhook 500 閿欒鎺掓煡 (Switch 鑺傜偣)
-- 閿欒璇婃柇锛氬垎鏋愪簡 "No item to return was found" 閿欒锛岀‘璁ゆ槸鍥犱负 n8n Webhook 鑺傜偣鐨勫搷搴旀ā寮忚涓?"When Last Node Finishes"锛屼絾 Switch 閫昏緫瀵艰嚧鎵ц璺緞鏈繑鍥炴湁鏁堟暟鎹€?
-- 淇寤鸿锛氬缓璁敤鎴峰皢 Webhook 鍝嶅簲妯″紡鏀逛负 "On Received"锛屾垨鍦ㄦ瘡涓垎鏀湯灏炬坊鍔?"Respond to Webhook" 鑺傜偣銆?
+
+
+### 2026-02-28: n8n Webhook 500 错误排查 (Switch 节点)
+- 错误诊断：分析了 "No item to return was found" 错误，确认是因为 n8n Webhook 节点的响应模式设为 "When Last Node Finishes"，但 Switch 逻辑导致执行路径未返回有效数据。
+- 修复建议：建议用户将 Webhook 响应模式改为 "On Received"，或在每个分支末尾添加 "Respond to Webhook" 节点。

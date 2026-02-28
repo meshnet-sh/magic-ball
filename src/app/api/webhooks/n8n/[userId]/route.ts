@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { executeAction } from '@/lib/executeAction';
+import { executeAction, saveSystemMessage } from '@/lib/executeAction';
 
 export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
     try {
@@ -66,6 +66,12 @@ export async function POST(request: Request, context: { params: Promise<{ userId
         // For example, `{ "action": "create_idea", "content": "Scraped data..." }`
         if (payload && payload.action) {
             const result = await executeAction(db, targetUser.id, payload);
+
+            // Explicitly save text output from external automation (like 'chat' actions) to the UI
+            if (result.ok && payload.action === 'chat') {
+                await saveSystemMessage(db, targetUser.id, result.message, 'system');
+            }
+
             return NextResponse.json({ success: result.ok, data: result.message });
         }
 
