@@ -268,3 +268,5 @@
 - Mobile UI Optimization: Added extra bottom padding to the main layout to prevent mobile browser navigation bar overlap. Simplified dashboard tool cards by hiding descriptions on small screens and significantly enlarged the AI Command Center and Fast Idea Logger interactive buttons (especially the microphone recording button) for better touch usability.
 
 - Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (外部功能接口) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (使用帮助) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
+
+- Navigation Synergy: Synchronized the main Dashboard grid and the lateral Sidebar to feature the exact same six menu items in the same logical order (Dashboard, Ideas, Polls, Scheduler, External APIs, Settings, Help). This resolves navigational discrepancies and establishes a coordinated user experience across both interfaces.
