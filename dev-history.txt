@@ -280,3 +280,7 @@
 - Inbound (n8n -> Magic-Ball) Webhook 支持:
   - 新增开放回调网关 api/webhooks/n8n/route.ts。当 n8n 侧执行完耗时自动化任务后，可通过该接口携数据回写。
   - 指令内核注入: 传入的合法数据可以直接在后台触发完整的 executeAction。
+
+- **AI Agent 调度能力强化 (Bugfix)**:
+  - 修复了主对话窗口 (Chat UI) 下 AI 不知道自己拥有调用外部抽象工具 (trigger_external_workflow) 的能力缺陷。
+  - 在系统的聊天指令解析器核心 Prompt 内，为外部自动化操作写入了强制的严格 Payload JSON 骨架结构。
