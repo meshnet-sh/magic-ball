@@ -263,6 +263,16 @@ function AICommandCenter() {
           if (res.ok) return { ok: true, message: `🗑️ 任务已取消` }
           return { ok: false, message: '取消任务失败' }
         }
+        case 'trigger_external_workflow': {
+          const res = await fetch("/api/external-workflow", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ event: cmd.event, payload: cmd.payload })
+          })
+          if (res.ok) return { ok: true, message: `🚀 已触发外部自动化工作流: ${cmd.event}` }
+          const err = await res.json().catch(() => ({}))
+          return { ok: false, message: `外部工作流触发失败: ${(err as any).error || res.statusText}` }
+        }
         case 'chat':
           return { ok: true, message: cmd.message || '好的' }
         default:

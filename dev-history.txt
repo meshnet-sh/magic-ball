@@ -284,3 +284,5 @@
 - **AI Agent 调度能力强化 (Bugfix)**:
   - 修复了主对话窗口 (Chat UI) 下 AI 不知道自己拥有调用外部抽象工具 (trigger_external_workflow) 的能力缺陷。
   - 在系统的聊天指令解析器核心 Prompt 内，为外部自动化操作写入了强制的严格 Payload JSON 骨架结构。
+
+  - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 /api/external-workflow 路由供 Web 端直接调用，将 AI 返回的 trigger_external_workflow 行动桥接到后端的 n8n 集成系统。
