@@ -3,29 +3,10 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { scheduledTasks, userSettings, messages } from '@/db/schema';
 import { eq, and, lte, desc } from 'drizzle-orm';
-import { executeAction } from '@/lib/executeAction';
 import { getAccessToken } from '@/lib/feishu';
+import { claimAndAdvanceScheduledTask, runClaimedScheduledTask } from '@/lib/schedulerRunner';
 
 const CRON_SECRET = 'mb-cron-2026-secret';
-
-function computeNextTrigger(recurrence: string | null, currentTrigger: number): number | null {
-    if (!recurrence) return null;
-    if (recurrence.startsWith('minutes:')) {
-        const mins = parseInt(recurrence.split(':')[1], 10);
-        if (mins > 0) return currentTrigger + mins * 60 * 1000;
-    }
-    if (recurrence.startsWith('hours:')) {
-        const hrs = parseInt(recurrence.split(':')[1], 10);
-        if (hrs > 0) return currentTrigger + hrs * 3600 * 1000;
-    }
-    const d = new Date(currentTrigger);
-    switch (recurrence) {
-        case 'daily': d.setDate(d.getDate() + 1); return d.getTime();
-        case 'weekly': d.setDate(d.getDate() + 7); return d.getTime();
-        case 'monthly': d.setMonth(d.getMonth() + 1); return d.getTime();
-        default: return null;
-    }
-}
 
 // GET /api/scheduler/cron?key=SECRET
 export async function GET(request: Request) {
@@ -49,34 +30,10 @@ export async function GET(request: Request) {
         const userResults: Record<string, string[]> = {};
 
         for (const task of dueTasks) {
-            // Parse action — support full action JSON or legacy format
-            let actionCmd: any;
-            try {
-                const payload = JSON.parse(task.actionPayload);
-                if (payload.action) {
-                    // New format: full action JSON stored in actionPayload
-                    actionCmd = payload;
-                } else {
-                    // Legacy format: reconstruct from actionType + actionPayload
-                    actionCmd = { action: task.actionType, ...payload };
-                }
-            } catch {
-                actionCmd = { action: task.actionType };
-            }
+            const claimed = await claimAndAdvanceScheduledTask(env.DB, task, now);
+            if (!claimed) continue;
 
-            const result = await executeAction(db, task.userId, actionCmd);
-
-            // Update task: next trigger or mark completed
-            const nextTrigger = computeNextTrigger(task.recurrence, task.triggerAt);
-            if (nextTrigger) {
-                await db.update(scheduledTasks)
-                    .set({ lastTriggered: now, triggerAt: nextTrigger })
-                    .where(eq(scheduledTasks.id, task.id));
-            } else {
-                await db.update(scheduledTasks)
-                    .set({ lastTriggered: now, status: 'completed' })
-                    .where(eq(scheduledTasks.id, task.id));
-            }
+            const result = await runClaimedScheduledTask(db, task.userId, task);
 
             if (!userResults[task.userId]) userResults[task.userId] = [];
             userResults[task.userId].push(result.message);

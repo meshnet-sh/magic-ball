@@ -1,39 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
-import { scheduledTasks, ideas, userSettings, users } from '@/db/schema';
+import { scheduledTasks, userSettings, users } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
-
-function computeNextTrigger(recurrence: string | null, currentTrigger: number): number | null {
-    if (!recurrence) return null; // one-time task → no next trigger
-
-    // Support "minutes:X" and "hours:X" for fine-grained intervals
-    if (recurrence.startsWith('minutes:')) {
-        const mins = parseInt(recurrence.split(':')[1], 10);
-        if (mins > 0) return currentTrigger + mins * 60 * 1000;
-    }
-    if (recurrence.startsWith('hours:')) {
-        const hrs = parseInt(recurrence.split(':')[1], 10);
-        if (hrs > 0) return currentTrigger + hrs * 3600 * 1000;
-    }
-
-    const d = new Date(currentTrigger);
-    switch (recurrence) {
-        case 'daily':
-            d.setDate(d.getDate() + 1);
-            return d.getTime();
-        case 'weekly':
-            d.setDate(d.getDate() + 7);
-            return d.getTime();
-        case 'monthly':
-            d.setMonth(d.getMonth() + 1);
-            return d.getTime();
-        default:
-            return null;
-    }
-}
+import { claimAndAdvanceScheduledTask, runClaimedScheduledTask } from '@/lib/schedulerRunner';
 
 // POST — check & execute all due tasks for the current user
 export async function POST(request: Request) {
@@ -66,41 +38,13 @@ export async function POST(request: Request) {
         const results: { taskId: string; title: string; success: boolean; message: string }[] = [];
         const userResults: string[] = [];
 
-        // Dynamic import to avoid circle dependencies if any, but straight import works
-        const { executeAction } = await import('@/lib/executeAction');
         const { getAccessToken } = await import('@/lib/feishu');
 
         for (const task of dueTasks) {
-            let actionCmd: any;
-            try {
-                const payload = JSON.parse(task.actionPayload);
-                if (payload.action) {
-                    actionCmd = payload;
-                } else {
-                    // Legacy ai_prompt to ai_agent translation
-                    if (task.actionType === 'ai_prompt') {
-                        actionCmd = { action: 'ai_agent', prompt: payload.prompt };
-                    } else {
-                        actionCmd = { action: task.actionType, ...payload };
-                    }
-                }
-            } catch {
-                actionCmd = { action: task.actionType };
-            }
+            const claimed = await claimAndAdvanceScheduledTask(env.DB, task, now);
+            if (!claimed) continue;
 
-            const result = await executeAction(db, userId, actionCmd);
-
-            // Update task: set lastTriggered, compute next trigger or mark completed
-            const nextTrigger = computeNextTrigger(task.recurrence, task.triggerAt);
-            if (nextTrigger) {
-                await db.update(scheduledTasks)
-                    .set({ lastTriggered: now, triggerAt: nextTrigger })
-                    .where(eq(scheduledTasks.id, task.id));
-            } else {
-                await db.update(scheduledTasks)
-                    .set({ lastTriggered: now, status: 'completed' })
-                    .where(eq(scheduledTasks.id, task.id));
-            }
+            const result = await runClaimedScheduledTask(db, userId, task);
 
             results.push({ taskId: task.id, title: task.title, success: result.ok, message: result.message });
             userResults.push(`[${task.title}] ${result.message}`);

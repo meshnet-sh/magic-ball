@@ -4,6 +4,7 @@ import { getDb } from '@/db/index';
 import { scheduledTasks } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
+import { parseScheduledTaskAction } from '@/lib/schedulerRunner';
 
 export async function POST(request: Request) {
     try {
@@ -26,19 +27,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 });
         }
 
-        let actionCmd: any;
-        try {
-            const payload = JSON.parse(task.actionPayload);
-            if (payload.action) {
-                actionCmd = payload;
-            } else if (task.actionType === 'ai_prompt') {
-                actionCmd = { action: 'ai_agent', prompt: payload.prompt };
-            } else {
-                actionCmd = { action: task.actionType, ...payload };
-            }
-        } catch {
-            actionCmd = { action: task.actionType };
-        }
+        const actionCmd = parseScheduledTaskAction(task);
 
         const { executeAction } = await import('@/lib/executeAction');
         const result = await executeAction(db, userId, actionCmd);
