@@ -27,16 +27,22 @@ export async function GET(request: Request) {
             .where(eq(messages.userId, userId))
             .orderBy(desc(messages.createdAt), desc(messages.id));
 
-        const seen = new Set<string>();
-        const sessionsList: Array<{ sessionId: string; lastContent: string; createdAt: number }> = [];
+        const sessionsList: Array<{ sessionId: string; lastContent: string; createdAt: number; messageCount: number }> = [];
+        const indexMap = new Map<string, number>();
 
         for (const row of rows) {
-            if (seen.has(row.sessionId)) continue;
-            seen.add(row.sessionId);
+            const existingIndex = indexMap.get(row.sessionId);
+            if (existingIndex !== undefined) {
+                sessionsList[existingIndex].messageCount += 1;
+                continue;
+            }
+
+            indexMap.set(row.sessionId, sessionsList.length);
             sessionsList.push({
                 sessionId: row.sessionId,
                 lastContent: row.lastContent,
                 createdAt: row.createdAt,
+                messageCount: 1,
             });
         }
 

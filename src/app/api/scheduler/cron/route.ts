@@ -51,24 +51,40 @@ export async function GET(request: Request) {
                     .where(and(eq(userSettings.userId, uId), eq(userSettings.key, 'active_chat_session_id')))
                     .limit(1);
 
-                const latestMessage = await db.select({
+                const recentMessages = await db.select({
                     sessionId: messages.sessionId,
                 }).from(messages)
                     .where(eq(messages.userId, uId))
                     .orderBy(desc(messages.createdAt))
-                    .limit(1);
+                    .limit(50);
 
-                const activeSessionId = activeSessionSetting[0]?.value?.trim();
-                const targetSessionId = activeSessionId || latestMessage[0]?.sessionId || 'default';
+                const targetSessionIds: string[] = [];
+                const pushSessionId = (sid?: string | null) => {
+                    const normalized = sid?.trim();
+                    if (!normalized) return;
+                    if (targetSessionIds.includes(normalized)) return;
+                    targetSessionIds.push(normalized);
+                };
 
-                await db.insert(messages).values({
-                    id: crypto.randomUUID(),
-                    userId: uId,
-                    sessionId: targetSessionId,
-                    content: notification,
-                    source: 'system',
-                    createdAt: Date.now(),
-                });
+                // Prefer active session, then mirror to recent sessions to avoid "message written but not visible".
+                pushSessionId(activeSessionSetting[0]?.value);
+                for (const row of recentMessages) {
+                    pushSessionId(row.sessionId);
+                    if (targetSessionIds.length >= 5) break;
+                }
+                pushSessionId('default');
+                if (targetSessionIds.length === 0) pushSessionId('default');
+
+                await db.insert(messages).values(
+                    targetSessionIds.map((sessionId) => ({
+                        id: crypto.randomUUID(),
+                        userId: uId,
+                        sessionId,
+                        content: notification,
+                        source: 'system',
+                        createdAt: Date.now(),
+                    }))
+                );
             } catch (e) {
                 console.error("Failed to save cron result to messages DB", e);
             }

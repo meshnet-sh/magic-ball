@@ -23,6 +23,13 @@ interface PendingImage {
   mimeType: string
 }
 
+interface SessionSummary {
+  sessionId: string
+  lastContent: string
+  createdAt: number
+  messageCount: number
+}
+
 const MAX_RETRIES = 5
 const getSessionCacheKey = (sid: string) => `magic_ball_messages_${sid}`
 const sanitizeAiText = (text: string) => text.replace(/```json|```/gi, '').trim()
@@ -53,8 +60,9 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const [isProcessing, setIsProcessing] = useState(false)
   const [historyLimit, setHistoryLimit] = useState(50)
   const [historyWarnThreshold, setHistoryWarnThreshold] = useState(80)
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [showSessions, setShowSessions] = useState(false)
+  const [sessionSearch, setSessionSearch] = useState("")
   const [isRecording, setIsRecording] = useState(false)
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -145,6 +153,14 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   useEffect(() => {
     if (showSessions) loadSessions()
+  }, [showSessions])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.style.overflow = showSessions ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
   }, [showSessions])
 
   const deleteSession = async (sid: string, e: React.MouseEvent) => {
@@ -575,6 +591,15 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     setSessionId(newSid)
   }
 
+  const filteredSessions = sessions.filter((s) => {
+    const q = sessionSearch.trim().toLowerCase()
+    if (!q) return true
+    return (
+      s.sessionId.toLowerCase().includes(q) ||
+      (s.lastContent || '').toLowerCase().includes(q)
+    )
+  })
+
   const handleImageSelect = async (file?: File) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
@@ -671,7 +696,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
               )}
             >
               <BookOpen size={12} />
-              <span>历史</span>
+              <span>历史会话</span>
             </button>
             <button onClick={() => {
               setIsProcessing(true)
@@ -695,50 +720,6 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
               </button>
             )}
           </div>
-
-          {showSessions && (
-            <div className="absolute bottom-full mb-12 left-0 w-64 max-h-[300px] overflow-y-auto bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-xl z-50 animate-in slide-in-from-bottom-2 duration-200">
-              <div className="p-3 border-b border-border/50 flex items-center justify-between">
-                <span className="text-[13px] font-semibold">历史对话</span>
-                <button onClick={() => setShowSessions(false)}><X size={14} /></button>
-              </div>
-              <div className="p-1.5">
-                {sessions.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">暂无历史记录</div>
-                ) : (
-                  sessions.map((s: any) => (
-                    <div key={s.sessionId} className="relative group/item mb-1">
-                      <button
-                        onClick={() => {
-                          setSessionId(s.sessionId);
-                          localStorage.setItem('magic_ball_session_id', s.sessionId);
-                          setShowSessions(false);
-                        }}
-                        className={cn(
-                          "w-full text-left p-2.5 rounded-xl transition-all group pr-10",
-                          s.sessionId === sessionId ? "bg-primary/10 border-primary/20" : "hover:bg-secondary/60"
-                        )}
-                      >
-                        <div className="text-[13px] font-medium truncate mb-0.5 group-hover:text-primary transition-colors">
-                          {s.lastContent || '空对话'}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground flex justify-between">
-                          <span>{s.sessionId.slice(0, 8)}...</span>
-                          <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => deleteSession(s.sessionId, e)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover/item:opacity-100"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
 
           <div className="flex-1 relative bg-secondary/30 border border-border/50 rounded-3xl shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all flex items-center min-h-[56px] pl-4 pr-1">
             <input
@@ -824,6 +805,84 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
           </p>
         </div>
       </div>
+
+      {showSessions && (
+        <div className="fixed inset-0 z-[100] bg-black/45 backdrop-blur-sm p-4 md:p-8">
+          <div className="mx-auto h-full w-full max-w-5xl rounded-3xl border border-border/50 bg-background/95 shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 md:p-5 border-b border-border/50 flex items-center gap-3">
+              <div>
+                <div className="text-base md:text-lg font-semibold tracking-tight">历史会话</div>
+                <div className="text-xs text-muted-foreground">
+                  共 {sessions.length} 个会话，当前筛选 {filteredSessions.length} 个
+                </div>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <input
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                  placeholder="搜索会话ID或内容..."
+                  className="h-9 w-44 md:w-72 rounded-xl border border-border/50 bg-secondary/50 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <button
+                  onClick={() => setShowSessions(false)}
+                  className="h-9 w-9 rounded-xl border border-border/50 bg-secondary/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 md:p-4">
+              {filteredSessions.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                  没有匹配到历史会话
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {filteredSessions.map((s) => (
+                    <div
+                      key={s.sessionId}
+                      className={cn(
+                        "rounded-2xl border p-3 md:p-4 transition-all",
+                        s.sessionId === sessionId
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border/50 bg-secondary/20"
+                      )}
+                    >
+                      <button
+                        onClick={() => {
+                          setSessionId(s.sessionId)
+                          localStorage.setItem('magic_ball_session_id', s.sessionId)
+                          setShowSessions(false)
+                        }}
+                        className="w-full text-left"
+                      >
+                        <div className="text-sm font-semibold line-clamp-2 min-h-10">
+                          {s.lastContent || '空对话'}
+                        </div>
+                        <div className="mt-2 text-[11px] text-muted-foreground">
+                          <div>ID: {s.sessionId}</div>
+                          <div>{new Date(s.createdAt).toLocaleString('zh-CN')}</div>
+                          <div>{s.messageCount} 条消息</div>
+                        </div>
+                      </button>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          onClick={(e) => deleteSession(s.sessionId, e)}
+                          className="h-8 px-2.5 rounded-lg border border-destructive/20 text-destructive hover:bg-destructive/10 text-xs inline-flex items-center gap-1.5"
+                        >
+                          <Trash2 size={13} />
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
