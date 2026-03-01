@@ -9,9 +9,25 @@ import { Mic, ImageIcon, Send, Square, Trash2, Cloud, CloudOff } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+const pickSupportedAudioMimeType = (): string | undefined => {
+    if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return undefined
+    const candidates = [
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/aac',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+    ]
+    for (const type of candidates) {
+        if (MediaRecorder.isTypeSupported(type)) return type
+    }
+    return undefined
+}
+
 function IdeaCard({ idea }: { idea: Idea }) {
     const { removeIdea } = useIdeasStore()
     const [isDeleting, setIsDeleting] = useState(false)
+    const [audioLoadError, setAudioLoadError] = useState(false)
 
     return (
         <div className="group relative flex flex-col gap-2 p-4 rounded-2xl bg-secondary/30 hover:bg-secondary/50 transition-colors border border-border/50 animate-in fade-in slide-in-from-bottom-2">
@@ -48,7 +64,19 @@ function IdeaCard({ idea }: { idea: Idea }) {
             )}
 
             {idea.type === 'audio' && (
-                <audio controls src={idea.content} className="h-10 w-full outline-none mt-1" />
+                <div className="space-y-1">
+                    <audio
+                        controls
+                        src={idea.content}
+                        className="h-10 w-full outline-none mt-1"
+                        onError={() => setAudioLoadError(true)}
+                    />
+                    {audioLoadError && (
+                        <p className="text-xs text-destructive">
+                            当前浏览器无法播放这条录音，可能是旧格式编码导致。
+                        </p>
+                    )}
+                </div>
             )}
 
             {idea.tags.length > 0 && (
@@ -128,7 +156,10 @@ export default function IdeasPage() {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-            const recorder = new MediaRecorder(stream)
+            const preferredMimeType = pickSupportedAudioMimeType()
+            const recorder = preferredMimeType
+                ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+                : new MediaRecorder(stream)
             audioChunks.current = []
 
             recorder.ondataavailable = (e) => {
@@ -136,7 +167,8 @@ export default function IdeasPage() {
             }
 
             recorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' })
+                const finalType = recorder.mimeType || preferredMimeType || 'audio/webm'
+                const audioBlob = new Blob(audioChunks.current, { type: finalType })
                 const reader = new FileReader()
                 reader.readAsDataURL(audioBlob)
                 reader.onloadend = () => {
