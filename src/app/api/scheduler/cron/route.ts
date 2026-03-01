@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
-import { scheduledTasks, userSettings } from '@/db/schema';
-import { eq, and, lte } from 'drizzle-orm';
+import { scheduledTasks, userSettings, messages } from '@/db/schema';
+import { eq, and, lte, desc } from 'drizzle-orm';
 import { executeAction } from '@/lib/executeAction';
 import { getAccessToken } from '@/lib/feishu';
 
@@ -84,12 +84,36 @@ export async function GET(request: Request) {
 
         // Send Feishu push notifications
         for (const uId of Object.keys(userResults)) {
+            const notification = `📋 Magic Ball 定时任务报告\n\n${userResults[uId].join('\n\n')}`;
+
+            // Always persist to web chat first.
+            try {
+                const latestMessage = await db.select({
+                    sessionId: messages.sessionId,
+                }).from(messages)
+                    .where(eq(messages.userId, uId))
+                    .orderBy(desc(messages.createdAt))
+                    .limit(1);
+
+                const targetSessionId = latestMessage[0]?.sessionId || 'default';
+
+                await db.insert(messages).values({
+                    id: crypto.randomUUID(),
+                    userId: uId,
+                    sessionId: targetSessionId,
+                    content: notification,
+                    source: 'system',
+                    createdAt: Date.now(),
+                });
+            } catch (e) {
+                console.error("Failed to save cron result to messages DB", e);
+            }
+
             try {
                 const feishuSetting = await db.select().from(userSettings)
                     .where(and(eq(userSettings.userId, uId), eq(userSettings.key, 'feishu_open_id')));
                 if (feishuSetting.length > 0) {
                     const token = await getAccessToken();
-                    const notification = `📋 Magic Ball 定时任务报告\n\n${userResults[uId].join('\n\n')}`;
                     await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
