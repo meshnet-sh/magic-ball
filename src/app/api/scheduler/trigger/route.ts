@@ -96,14 +96,28 @@ export async function POST(request: Request) {
             userResults.push(`[${task.title}] ${result.message}`);
         }
 
-        // Send Feishu push notifications if there were tasks executed
+        // Save results to web messages and send Feishu push
         if (userResults.length > 0) {
+            const notification = `📋 Magic Ball Web端触发任务报告\n\n${userResults.join('\n\n')}`;
+
+            try {
+                const { messages } = await import('@/db/schema');
+                await db.insert(messages).values({
+                    id: crypto.randomUUID(),
+                    userId,
+                    content: notification,
+                    source: 'system',
+                    createdAt: Date.now()
+                });
+            } catch (e) {
+                console.error("Failed to save scheduler result to messages DB", e);
+            }
+
             try {
                 const feishuSetting = await db.select().from(userSettings)
                     .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'feishu_open_id')));
                 if (feishuSetting.length > 0) {
                     const token = await getAccessToken();
-                    const notification = `📋 Magic Ball Web端触发任务报告\n\n${userResults.join('\n\n')}`;
                     await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

@@ -334,3 +334,4 @@
  2 0 2 6 - 0 3 - 0 1 :   �yd��Nnf�(u7b�v�r�zL L M   A P I   K e y M�n	�y��:_6RhQ@\�1u�W e b �z0ޘfN�z0A g e n t �z	�O(u�{tXT( m e s h n e t @ 1 6 3 . c o m ) �vK e y �TM o d e l ��[�shQ@\�{�R`l�R��0u�b���n-N��υ�Nnf�(u7b�vA I !j�W	��by�0 
  2 0 2 6 - 0 3 - 0 1 :   Qu�;NLub�͑�g�\aSGr�Nh��vu�b�GS�~:N�g�{�vhQ@\hQO\  A I   J�)Y�[݋Lub���O��hƖbT*NN�R�^(ueQ�S�v^�X�R  M a r k d o w n   2n�g/ec0 
  2026-03-01: 修复全屏聊天界面的重复侧边栏嵌套问题及历史对话气泡的背景显示异常。
+2026-03-01: 优化消息互动中心：后台定时任务的执行结果和提醒现在会自动保存至系统的历史记录(Messages 表)，并实时推送更新至网页端的极简对话流中，同时飞书机器人侧保持系统通知同步。

@@ -36,17 +36,25 @@ function AICommandCenter() {
   }, [messages])
 
   useEffect(() => {
-    if (isLoadedRef.current) return
-    isLoadedRef.current = true
-    fetch('/api/messages').then(r => r.json()).then(data => {
-      if (data.success && data.data) {
-        setMessages(data.data.map((m: any) => ({
-          role: m.source === 'user' ? 'user' : 'assistant',
-          text: m.content || '',
-          status: 'success'
-        })))
-      }
-    }).catch(() => { })
+    const loadMessages = () => {
+      fetch('/api/messages').then(r => r.json()).then(data => {
+        if (data.success && data.data) {
+          setMessages(data.data.map((m: any) => ({
+            role: m.source === 'user' ? 'user' : 'assistant',
+            text: m.content || '',
+            status: 'success'
+          })))
+        }
+      }).catch(() => { })
+    }
+
+    if (!isLoadedRef.current) {
+      isLoadedRef.current = true
+      loadMessages()
+    }
+
+    window.addEventListener('scheduler_triggered', loadMessages)
+    return () => window.removeEventListener('scheduler_triggered', loadMessages)
   }, [])
 
   const silenceTimerRef = useRef<any>(null)
@@ -509,7 +517,11 @@ export default function Home() {
     if (isAuthenticated !== true) return
     const checkTriggers = async () => {
       try {
-        await fetch('/api/scheduler/trigger', { method: 'POST' })
+        const res = await fetch('/api/scheduler/trigger', { method: 'POST' })
+        const data = await res.json()
+        if (data.success && data.triggered > 0) {
+          window.dispatchEvent(new Event('scheduler_triggered'))
+        }
       } catch { }
     }
     checkTriggers() // initial check
