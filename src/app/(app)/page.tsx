@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings, Menu, X } from "lucide-react";
+import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings, Menu, X, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -15,6 +15,12 @@ interface ChatMessage {
   command?: any
   status?: 'pending' | 'success' | 'error'
   errorDetail?: string
+}
+
+interface PendingImage {
+  dataUrl: string
+  base64: string
+  mimeType: string
 }
 
 const MAX_RETRIES = 5
@@ -35,8 +41,10 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const [sessions, setSessions] = useState<any[]>([])
   const [showSessions, setShowSessions] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -55,7 +63,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
         }
       }
 
-      fetch(`/api/messages?sessionId=${sessionId}`).then(r => r.json()).then(data => {
+      fetch(`/api/messages?sessionId=${sessionId}`, { cache: 'no-store' }).then(r => r.json()).then(data => {
         if (data.success && data.data) {
           const nextMessages = data.data.map((m: any) => ({
             role: m.source === 'user' ? 'user' : 'assistant',
@@ -83,7 +91,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   }, [messages, sessionId])
 
   const loadSessions = () => {
-    fetch('/api/messages/sessions').then(r => r.json()).then(data => {
+    fetch('/api/messages/sessions', { cache: 'no-store' }).then(r => r.json()).then(data => {
       if (data.success && data.data) {
         setSessions(data.data)
       }
@@ -220,12 +228,13 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const callAI = async (
     apiMessages: { role: string; text: string }[],
     audio?: string,
+    image?: { data: string; mimeType: string },
     onStream?: (text: string) => void
   ) => {
     const res = await fetch("/api/ai/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: apiMessages, audio })
+      body: JSON.stringify({ messages: apiMessages, audio, image })
     });
 
     if (!res.ok) throw new Error('请求失败');
@@ -295,7 +304,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
     try {
       const apiMessages = buildApiMessages(newHistory)
-      const { transcript, actions } = await callAI(apiMessages, base64Audio, (incrementalText) => {
+      const { transcript, actions } = await callAI(apiMessages, base64Audio, undefined, (incrementalText) => {
         setMessages(prev => prev.map((m, i) =>
           i === prev.length - 1 ? { ...m, text: incrementalText } : m
         ))
@@ -412,11 +421,16 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   }
 
   const handleSend = async (text?: string) => {
-    const userText = (text || input).trim()
-    if (!userText || isProcessing) return
-    setInput("")
+    const typedText = (text || input).trim()
+    const imageForSend = pendingImage
+    if ((!typedText && !imageForSend) || isProcessing) return
 
-    const userMsg: ChatMessage = { role: 'user', text: userText }
+    const userText = typedText || '请分析这张图片'
+    const displayText = imageForSend ? `🖼️ ${userText}` : userText
+    setInput("")
+    setPendingImage(null)
+
+    const userMsg: ChatMessage = { role: 'user', text: displayText }
     const newHistory = [...messages, userMsg]
     setMessages(newHistory)
     setIsProcessing(true)
@@ -425,7 +439,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: userText, source: 'user', sessionId: sessionId })
+      body: JSON.stringify({ content: displayText, source: 'user', sessionId: sessionId })
     })
       .then(() => {
         if (showSessions) loadSessions()
@@ -441,11 +455,16 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
         setMessages(prev => [...prev, streamMsg])
 
         const apiMessages = buildApiMessages(currentHistory)
-        const { actions } = await callAI(apiMessages, undefined, (incrementalText) => {
+        const { actions } = await callAI(
+          apiMessages,
+          undefined,
+          imageForSend ? { data: imageForSend.base64, mimeType: imageForSend.mimeType } : undefined,
+          (incrementalText) => {
           setMessages(prev => prev.map((m, i) =>
             i === prev.length - 1 ? { ...m, text: incrementalText } : m
           ))
-        })
+          }
+        )
 
         setMessages(prev => prev.filter((_, i) => i !== prev.length - 1)) // clear temporary streaming message before action execution
 
@@ -496,6 +515,34 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     localStorage.setItem(getSessionCacheKey(newSid), JSON.stringify([]))
     localStorage.setItem('magic_ball_session_id', newSid)
     setSessionId(newSid)
+  }
+
+  const handleImageSelect = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      addAssistantMessage('仅支持上传图片文件。', 'error')
+      return
+    }
+
+    try {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onloadend = () => {
+        if (typeof reader.result !== 'string') return
+        const base64 = reader.result.split(',')[1]
+        if (!base64) {
+          addAssistantMessage('图片读取失败，请重试。', 'error')
+          return
+        }
+        setPendingImage({
+          dataUrl: reader.result,
+          base64,
+          mimeType: file.type || 'image/jpeg'
+        })
+      }
+    } catch {
+      addAssistantMessage('图片读取失败，请重试。', 'error')
+    }
   }
 
   return (
@@ -570,7 +617,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
             </button>
             <button onClick={() => {
               setIsProcessing(true)
-              fetch(`/api/messages?sessionId=${sessionId}`).then(r => r.json()).then(data => {
+              fetch(`/api/messages?sessionId=${sessionId}`, { cache: 'no-store' }).then(r => r.json()).then(data => {
                 if (data.success && data.data) {
                   setMessages(data.data.map((m: any) => ({
                     role: m.source === 'user' ? 'user' : 'assistant',
@@ -636,6 +683,26 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
           )}
 
           <div className="flex-1 relative bg-secondary/30 border border-border/50 rounded-3xl shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all flex items-center min-h-[56px] pl-4 pr-1">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                handleImageSelect(file)
+                e.currentTarget.value = ''
+              }}
+            />
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isProcessing || isRecording}
+              className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all mr-1 disabled:opacity-50"
+              title="拍照或上传图片"
+            >
+              <ImagePlus size={18} />
+            </button>
             <textarea
               value={input}
               onChange={e => {
@@ -655,7 +722,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
               className="flex-1 bg-transparent border-none py-4 text-[15px] outline-none disabled:opacity-50 resize-none max-h-[150px] min-h-[24px] overflow-y-auto scrollbar-hide"
               rows={1}
             />
-            {input.trim() ? (
+            {(input.trim() || pendingImage) ? (
               <Button
                 onClick={() => handleSend()}
                 disabled={isProcessing}
@@ -679,6 +746,19 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
               </button>
             )}
           </div>
+          {pendingImage && (
+            <div className="absolute bottom-full mb-2 left-12 rounded-xl border border-border/50 bg-background/90 p-2 shadow-lg">
+              <div className="relative">
+                <img src={pendingImage.dataUrl} alt="待发送图片" className="w-24 h-24 object-cover rounded-lg" />
+                <button
+                  onClick={() => setPendingImage(null)}
+                  className="absolute -top-2 -right-2 bg-background border border-border rounded-full p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-center mt-2.5">
           <p className="text-[10px] text-muted-foreground/60 w-full text-center">
@@ -700,7 +780,7 @@ export default function Home() {
   })
 
   useEffect(() => {
-    fetch("/api/auth").then(r => r.json()).then((d: any) => {
+    fetch("/api/auth", { cache: 'no-store' }).then(r => r.json()).then((d: any) => {
       setIsAuthenticated(d.authenticated === true)
     }).catch(() => setIsAuthenticated(false))
   }, [])

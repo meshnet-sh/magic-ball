@@ -47,6 +47,7 @@ export async function POST(request: Request) {
         const body: any = await request.json();
         const messages: { role: string; text: string }[] = body.messages;
         const audioBase64: string | undefined = body.audio;
+        const imageInput: { data: string; mimeType?: string } | undefined = body.image;
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ success: false, error: '请输入指令' }, { status: 400 });
@@ -61,6 +62,15 @@ export async function POST(request: Request) {
                     inlineData: {
                         mimeType: 'audio/webm',
                         data: audioBase64
+                    }
+                });
+            }
+            // If this is the last user message and we have an image, add it as inline_data
+            if (imageInput?.data && i === messages.length - 1 && m.role === 'user') {
+                parts.push({
+                    inlineData: {
+                        mimeType: imageInput.mimeType || 'image/jpeg',
+                        data: imageInput.data
                     }
                 });
             }
