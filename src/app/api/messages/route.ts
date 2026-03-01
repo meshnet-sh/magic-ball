@@ -23,7 +23,10 @@ export async function GET(request: Request) {
             .orderBy(desc(messages.createdAt))
             .limit(50);
 
-        return NextResponse.json({ success: true, data: recentMessages.reverse() });
+        return NextResponse.json(
+            { success: true, data: recentMessages.reverse() },
+            { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+        );
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

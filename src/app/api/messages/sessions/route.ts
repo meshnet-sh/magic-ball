@@ -37,7 +37,10 @@ export async function GET(request: Request) {
             });
         }
 
-        return NextResponse.json({ success: true, data: sessionsList });
+        return NextResponse.json(
+            { success: true, data: sessionsList },
+            { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+        );
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
