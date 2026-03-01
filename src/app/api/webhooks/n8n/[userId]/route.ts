@@ -16,38 +16,62 @@ export async function POST(request: Request, context: { params: Promise<{ userId
         // If the admin did not set a token, we allow open access (though not recommended).
 
         const params = await context.params;
-        const userId = params.userId;
-        if (!userId) {
-            return NextResponse.json({ success: false, error: 'User ID is missing from route' }, { status: 400 });
+        const userIdFromPath = params.userId;
+        const authHeader = request.headers.get('Authorization');
+        const customHeader = request.headers.get('x-n8n-token');
+        const providedToken = authHeader?.replace('Bearer ', '') || customHeader || null;
+
+        // Primary resolution: userId in route
+        let resolvedUser: any = null;
+        let integrationsSetting: any = null;
+        let n8nToken: string | null = null;
+
+        if (userIdFromPath) {
+            resolvedUser = await db.select().from(users).where(eq(users.id, userIdFromPath)).get();
+            if (resolvedUser) {
+                integrationsSetting = await db.select().from(userSettings)
+                    .where(and(eq(userSettings.userId, userIdFromPath), eq(userSettings.key, "integrations")))
+                    .get();
+            }
         }
 
-        const targetUser = await db.select().from(users).where(eq(users.id, userId)).get();
-        if (!targetUser) {
+        // Fallback resolution: stale userId in URL, recover by token->user mapping
+        if (!resolvedUser && providedToken) {
+            const integrationRows = await db.select().from(userSettings).where(eq(userSettings.key, "integrations"));
+            for (const row of integrationRows) {
+                try {
+                    const parsed = JSON.parse(row.value);
+                    if (parsed?.n8n?.token && parsed.n8n.token === providedToken) {
+                        const maybeUser = await db.select().from(users).where(eq(users.id, row.userId)).get();
+                        if (maybeUser) {
+                            resolvedUser = maybeUser;
+                            integrationsSetting = row;
+                            break;
+                        }
+                    }
+                } catch {
+                    // Ignore malformed integrations value
+                }
+            }
+        }
+
+        if (!resolvedUser) {
             return NextResponse.json({ success: false, error: 'Target user not found' }, { status: 404 });
         }
 
-        const integrationsSetting = await db.select().from(userSettings)
-            .where(and(eq(userSettings.userId, userId), eq(userSettings.key, "integrations")))
-            .get();
-
-        let n8nToken = null;
         if (integrationsSetting) {
             try {
                 const parsed = JSON.parse(integrationsSetting.value);
-                n8nToken = parsed?.n8n?.token;
-            } catch (e) {
+                n8nToken = parsed?.n8n?.token || null;
+            } catch {
                 console.warn("[n8n-inbound] Invalid integrations JSON");
             }
         }
 
         // Validate token if one is configured
         if (n8nToken) {
-            const authHeader = request.headers.get('Authorization');
-            const customHeader = request.headers.get('x-n8n-token');
-            const providedToken = authHeader?.replace('Bearer ', '') || customHeader;
-
             if (!providedToken || providedToken !== n8nToken) {
-                console.warn(`[n8n-inbound] Auth failed. Expected: ${n8nToken}, Got: ${providedToken}`);
+                console.warn(`[n8n-inbound] Auth failed. user=${resolvedUser.id}`);
                 return NextResponse.json({ success: false, error: 'Unauthorized n8n webhook' }, { status: 401 });
             }
         }
@@ -65,12 +89,12 @@ export async function POST(request: Request, context: { params: Promise<{ userId
         // Processing: We allow the inbound webhook to trigger our core `executeAction` Engine !
         // For example, `{ "action": "create_idea", "content": "Scraped data..." }`
         if (payload && payload.action) {
-            const result = await executeAction(db, targetUser.id, payload);
+            const result = await executeAction(db, resolvedUser.id, payload);
 
             // Explicitly save text output from external automation (like 'chat' actions) to the UI
             if (result.ok && payload.action === 'chat') {
                 try {
-                    await saveSystemMessage(db, targetUser.id, result.message, 'system');
+                    await saveSystemMessage(db, resolvedUser.id, result.message, 'system');
                 } catch (e) {
                     console.error("[n8n-inbound] saveSystemMessage failed:", e);
                 }
@@ -86,7 +110,7 @@ export async function POST(request: Request, context: { params: Promise<{ userId
             content: `【n8n 回调数据】\n${contentStr}`,
             tags: ['n8n', 'webhook']
         };
-        const result = await executeAction(db, targetUser.id, fallbackCmd);
+        const result = await executeAction(db, resolvedUser.id, fallbackCmd);
 
         return NextResponse.json({ success: true, received: true, fallbackResult: result.message });
     } catch (error: any) {

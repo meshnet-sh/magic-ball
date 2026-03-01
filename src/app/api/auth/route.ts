@@ -103,7 +103,16 @@ export async function GET(request: Request) {
     if (sessionCookie) {
         const userId = await verifyAndExtractUserId(sessionCookie);
         if (userId) {
-            return NextResponse.json({ authenticated: true, userId });
+            try {
+                const { env } = await getCloudflareContext();
+                const db = getDb(env.DB);
+                const user = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+                if (user) {
+                    return NextResponse.json({ authenticated: true, userId });
+                }
+            } catch {
+                // Fall through as unauthenticated on any lookup error.
+            }
         }
     }
     return NextResponse.json({ authenticated: false });
