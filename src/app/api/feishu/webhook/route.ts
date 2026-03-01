@@ -165,10 +165,13 @@ export async function POST(request: Request) {
 
         const apiKey = apiSettings.value;
 
-        // Get model preference
+        // Get model preference from Admin
+        let model = 'gemini-2.0-flash';
         const modelSettings = await db.select().from(userSettings)
-            .where(eq(userSettings.key, 'gemini_model'));
-        const model = modelSettings.find(s => s.userId === userId)?.value || 'gemini-2.0-flash';
+            .where(and(eq(userSettings.userId, adminUser.id), eq(userSettings.key, 'gemini_model'))).get();
+        if (modelSettings && modelSettings.value) {
+            model = modelSettings.value;
+        }
 
         // Call Gemini
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;

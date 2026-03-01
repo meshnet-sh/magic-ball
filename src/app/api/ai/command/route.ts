@@ -15,20 +15,31 @@ export async function POST(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
-        // Get user's Gemini settings
-        const settings = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
-        const settingsMap: Record<string, string> = {};
-        settings.forEach(s => { settingsMap[s.key] = s.value; });
+        // Get the admin user's settings (Global LLM capability)
+        const ADMIN_EMAIL = 'meshnet@163.com';
+        const { users } = await import('@/db/schema');
+        const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
+        let apiKey, model = 'gemini-2.0-flash';
 
-        const apiKey = settingsMap['gemini_api_key'];
-        const model = settingsMap['gemini_model'] || 'gemini-flash-latest';
+        if (adminUser) {
+            const adminSettings = await db.select().from(userSettings)
+                .where(eq(userSettings.userId, adminUser.id));
+
+            const settingsMap: Record<string, string> = {};
+            adminSettings.forEach(s => { settingsMap[s.key] = s.value; });
+
+            apiKey = settingsMap['gemini_api_key'];
+            if (settingsMap['gemini_model']) {
+                model = settingsMap['gemini_model'];
+            }
+        }
 
         if (!apiKey) {
             return NextResponse.json({
                 success: true,
                 command: {
                     action: 'chat',
-                    message: '⚠️ 您还没有配置 Gemini API Key。请到 **设置 → AI 能力配置** 中添加您的 API Key。'
+                    message: '⚠️ 系统缺少全局的 Gemini API Key。请管理员到 **设置 → AI 能力配置** 中添加 API Key。'
                 }
             });
         }

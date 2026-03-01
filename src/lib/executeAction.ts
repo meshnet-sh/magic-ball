@@ -245,29 +245,25 @@ export async function executeAction(
                     }
                 }
 
-                // Get user settings (model, etc)
-                const settings = await db.select().from(userSettings)
-                    .where(eq(userSettings.userId, userId));
-                const settingsMap: Record<string, string> = {};
-                settings.forEach(s => { settingsMap[s.key] = s.value; });
+                // Get the admin user's settings (Global LLM capability)
+                const ADMIN_EMAIL = 'meshnet@163.com';
+                const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
+                let apiKey, model = 'gemini-2.0-flash';
 
-                let apiKey = settingsMap['gemini_api_key'];
-                const model = settingsMap['gemini_model'] || 'gemini-2.0-flash';
+                if (adminUser) {
+                    const adminSettings = await db.select().from(userSettings)
+                        .where(eq(userSettings.userId, adminUser.id));
 
-                // If user has no API key, borrow the admin's key
-                if (!apiKey) {
-                    const ADMIN_EMAIL = 'meshnet@163.com';
-                    const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
-                    if (adminUser) {
-                        const adminSettings = await db.select().from(userSettings)
-                            .where(and(eq(userSettings.userId, adminUser.id), eq(userSettings.key, 'gemini_api_key'))).get();
-                        if (adminSettings) {
-                            apiKey = adminSettings.value;
-                        }
+                    const settingsMap: Record<string, string> = {};
+                    adminSettings.forEach(s => { settingsMap[s.key] = s.value; });
+
+                    apiKey = settingsMap['gemini_api_key'];
+                    if (settingsMap['gemini_model']) {
+                        model = settingsMap['gemini_model'];
                     }
                 }
 
-                if (!apiKey) return { ok: false, message: '⚠️ 系统缺少全局或个人的 Gemini API Key，AI 任务被跳过。' };
+                if (!apiKey) return { ok: false, message: '⚠️ 系统缺少全局的 Gemini API Key，AI 任务被跳过。' };
 
                 const AGENT_PROMPT = `你是 Magic Ball AI Agent。你被定时任务唤醒来执行一个任务。
 分析下面的上下文和任务提示，然后返回要执行的 actions 数组。

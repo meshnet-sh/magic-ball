@@ -88,13 +88,13 @@ export default function SettingsPage() {
         try {
             if (isAdmin) {
                 await saveSetting("gemini_api_key", geminiKey)
+                await saveSetting("gemini_model", geminiModel)
             }
             // Integrations are now per-user
             await saveSetting("integrations", JSON.stringify({
                 n8n: { url: n8nUrl, token: n8nToken }
             }))
 
-            await saveSetting("gemini_model", geminiModel)
             await saveSetting("feishu_open_id", feishuOpenId)
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
@@ -149,7 +149,7 @@ export default function SettingsPage() {
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 max-w-lg">
                         <div>
                             <h2 className="text-base font-semibold mb-1">系统与 AI 配置</h2>
-                            <p className="text-xs text-muted-foreground">设置飞书联通属性以及模型推理偏好。</p>
+                            <p className="text-xs text-muted-foreground">设置飞书联通属性。{isAdmin ? "管理员可配置全局模型推理偏好。" : "系统由管理员统一提供算力池。"}</p>
                         </div>
 
                         {/* API Key (Admin Only) */}
@@ -193,20 +193,22 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Model selector */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">模型选择</label>
-                            <div className="grid grid-cols-1 gap-2">
-                                {GEMINI_MODELS.map(m => (
-                                    <button key={m.value} onClick={() => setGeminiModel(m.value)} className={cn("text-left px-4 py-3 rounded-xl border text-sm transition-all", geminiModel === m.value ? "bg-primary/10 border-primary/30 text-primary ring-1 ring-primary/20" : "bg-background border-border/50 hover:border-primary/20")}>
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-semibold">{m.label}</span>
-                                            <span className="text-[10px] text-muted-foreground font-mono">{m.value}</span>
-                                        </div>
-                                        <p className="text-[11px] text-muted-foreground mt-0.5">{m.desc}</p>
-                                    </button>
-                                ))}
+                        {isAdmin && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">模型选择 (全局算力模型)</label>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {GEMINI_MODELS.map(m => (
+                                        <button key={m.value} onClick={() => setGeminiModel(m.value)} className={cn("text-left px-4 py-3 rounded-xl border text-sm transition-all", geminiModel === m.value ? "bg-primary/10 border-primary/30 text-primary ring-1 ring-primary/20" : "bg-background border-border/50 hover:border-primary/20")}>
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-semibold">{m.label}</span>
+                                                <span className="text-[10px] text-muted-foreground font-mono">{m.value}</span>
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground mt-0.5">{m.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Save button */}
                         <Button onClick={saveAllSettings} disabled={isSaving} className="w-full rounded-xl py-5 gap-2">
