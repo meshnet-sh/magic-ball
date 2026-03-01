@@ -89,6 +89,7 @@ export function getSystemPrompt(): string {
 
 ## 6. 外部自动化 (external_workflow)
 - **能力**: 触发后端的外部自动化工作流（如 n8n），用来完成“发邮件”、“爬网页”、“处理特定任务”等超纲要求。
+- **默认限制**: 当前系统默认仅允许触发 send_email 事件。除非管理员显式放开其他事件，否则不要生成其他 event。
 - **命令格式**:
 \`\`\`json
 {"action": "trigger_external_workflow", "event": "事件名(英文或拼音)", "payload": {"参数名": "参数值"}}

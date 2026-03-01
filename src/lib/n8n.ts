@@ -24,6 +24,14 @@ export async function triggerN8nWorkflow(db: ReturnType<typeof getDb>, userId: s
         throw new Error("n8n webhook URL is not configured");
     }
 
+    // Event allowlist guard: default to email only, unless explicitly extended in integrations.n8n.allowedEvents.
+    const allowedEvents = Array.isArray(n8nConfig.allowedEvents) && n8nConfig.allowedEvents.length > 0
+        ? n8nConfig.allowedEvents.map((e: any) => String(e))
+        : ['send_email'];
+    if (!allowedEvents.includes(eventName)) {
+        throw new Error(`n8n event '${eventName}' is not allowed. Allowed events: ${allowedEvents.join(', ')}`);
+    }
+
     // Fill default email recipient when users ask to send email without explicit `to`.
     let normalizedPayload = payload;
     if (eventName === 'send_email') {

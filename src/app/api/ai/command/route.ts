@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { userSettings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { executeAction, loadMemories, saveMemory, getSystemPrompt } from '@/lib/executeAction';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
@@ -50,6 +50,19 @@ export async function POST(request: Request) {
         const imageInput: { data: string; mimeType?: string } | undefined = body.image;
         const historyLimit = Number(settingsMap['chat_history_limit']) > 0 ? Number(settingsMap['chat_history_limit']) : 50;
         const messages = (messagesInput || []).slice(-historyLimit);
+        let allowedWorkflowEvents = ['send_email'];
+        const integrationsSetting = await db.select().from(userSettings)
+            .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'integrations')))
+            .get();
+        if (integrationsSetting) {
+            try {
+                const parsed = JSON.parse(integrationsSetting.value);
+                const configured = parsed?.n8n?.allowedEvents;
+                if (Array.isArray(configured) && configured.length > 0) {
+                    allowedWorkflowEvents = configured.map((e: any) => String(e));
+                }
+            } catch { }
+        }
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ success: false, error: '请输入指令' }, { status: 400 });
@@ -84,6 +97,7 @@ export async function POST(request: Request) {
 
         // Load recent memories
         const memStr = await loadMemories(db, userId, 15);
+        const externalWorkflowPolicy = `\n\n# 外部工作流可用事件（当前用户）\n仅允许使用以下 event：${allowedWorkflowEvents.join(', ')}。\n如果用户请求不在上述列表内，请不要调用 trigger_external_workflow，改用 chat 说明当前未配置该通路。`;
 
         // Call Gemini API with Streaming
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -94,7 +108,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 contents,
                 systemInstruction: {
-                    parts: [{ text: getSystemPrompt() + `\n\n# 当前时间(北京时间)\n当前时间是: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch 毫秒: ${Date.now()}。这代表真实的本地时间，请据此计算用户描述的时间对应的 triggerAt 绝对毫秒时间戳。` + memStr }]
+                    parts: [{ text: getSystemPrompt() + `\n\n# 当前时间(北京时间)\n当前时间是: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}，epoch 毫秒: ${Date.now()}。这代表真实的本地时间，请据此计算用户描述的时间对应的 triggerAt 绝对毫秒时间戳。` + memStr + externalWorkflowPolicy }]
                 },
                 generationConfig: {
                     responseMimeType: 'application/json',

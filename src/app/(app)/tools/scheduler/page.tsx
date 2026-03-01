@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale/zh-CN"
-import { Calendar, Plus, Trash2, Pause, Play, Clock, Zap, Brain, Bell, Loader2, Sparkles, Repeat } from "lucide-react"
+import { Calendar, Plus, Trash2, Pause, Play, Clock, Zap, Brain, Bell, Loader2, Sparkles, Repeat, FlaskConical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -59,6 +59,8 @@ export default function SchedulerPage() {
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<"active" | "all">("active")
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [testingId, setTestingId] = useState<string | null>(null)
+    const [testResultMap, setTestResultMap] = useState<Record<string, string>>({})
 
     // New task form
     const [showForm, setShowForm] = useState(false)
@@ -136,6 +138,27 @@ export default function SchedulerPage() {
         await fetch(`/api/scheduler?id=${id}`, { method: "DELETE" })
         setDeletingId(null)
         fetchTasks()
+    }
+
+    const testTaskNow = async (task: ScheduledTask) => {
+        setTestingId(task.id)
+        try {
+            const res = await fetch('/api/scheduler/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: task.id }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok || data.success === false) {
+                setTestResultMap(prev => ({ ...prev, [task.id]: `测试失败：${data.error || res.statusText}` }))
+                return
+            }
+            setTestResultMap(prev => ({ ...prev, [task.id]: data.message || '测试完成' }))
+        } catch (err: any) {
+            setTestResultMap(prev => ({ ...prev, [task.id]: `测试失败：${err.message || '网络异常'}` }))
+        } finally {
+            setTestingId(null)
+        }
     }
 
     const formatTriggerTime = (ts: number) => {
@@ -366,6 +389,14 @@ export default function SchedulerPage() {
                                     </div>
 
                                     <div className="flex gap-1 shrink-0">
+                                        <button
+                                            onClick={() => testTaskNow(task)}
+                                            className="p-2 rounded-lg hover:bg-secondary/70 text-muted-foreground hover:text-foreground"
+                                            title="立即测试"
+                                            disabled={testingId === task.id}
+                                        >
+                                            {testingId === task.id ? <Loader2 size={15} className="animate-spin" /> : <FlaskConical size={15} />}
+                                        </button>
                                         {!isCompleted && (
                                             <button
                                                 onClick={() => toggleStatus(task)}
@@ -396,6 +427,12 @@ export default function SchedulerPage() {
                                         )}
                                     </div>
                                 </div>
+                                {testResultMap[task.id] ? (
+                                    <div className="mt-3 rounded-xl bg-primary/5 border border-primary/15 px-3 py-2">
+                                        <p className="text-[11px] text-muted-foreground mb-1">最近测试结果</p>
+                                        <p className="text-sm whitespace-pre-wrap break-words">{testResultMap[task.id]}</p>
+                                    </div>
+                                ) : null}
                             </div>
                         )
                     })}

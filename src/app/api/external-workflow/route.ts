@@ -39,6 +39,8 @@ export async function POST(request: Request) {
             data: workflowResult
         });
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message || 'Trigger external workflow failed' }, { status: 500 });
+        const message = error.message || 'Trigger external workflow failed';
+        const status = message.includes('not allowed') ? 400 : 500;
+        return NextResponse.json({ success: false, error: message }, { status });
     }
 }
