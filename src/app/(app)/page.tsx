@@ -56,16 +56,34 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     return () => window.removeEventListener('scheduler_triggered', loadMessages)
   }, [sessionId])
 
+  const loadSessions = () => {
+    fetch('/api/messages/sessions').then(r => r.json()).then(data => {
+      if (data.success && data.data) {
+        setSessions(data.data)
+      }
+    }).catch(() => { })
+  }
+
   useEffect(() => {
-    const loadSessions = () => {
-      fetch('/api/messages/sessions').then(r => r.json()).then(data => {
-        if (data.success && data.data) {
-          setSessions(data.data)
-        }
-      }).catch(() => { })
-    }
     if (showSessions) loadSessions()
   }, [showSessions])
+
+  const deleteSession = async (sid: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('确定要删除这段对话历史吗？')) return
+
+    try {
+      const res = await fetch(`/api/messages/sessions?sessionId=${sid}`, { method: 'DELETE' })
+      if (res.ok) {
+        if (sid === sessionId) {
+          createNewChat()
+        }
+        loadSessions()
+      }
+    } catch (e) {
+      console.error("Failed to delete session", e)
+    }
+  }
 
   const silenceTimerRef = useRef<any>(null)
   const analyserCleanupRef = useRef<(() => void) | null>(null)
@@ -551,26 +569,33 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
                   <div className="p-4 text-center text-xs text-muted-foreground">暂无历史记录</div>
                 ) : (
                   sessions.map((s: any) => (
-                    <button
-                      key={s.sessionId}
-                      onClick={() => {
-                        setSessionId(s.sessionId);
-                        localStorage.setItem('magic_ball_session_id', s.sessionId);
-                        setShowSessions(false);
-                      }}
-                      className={cn(
-                        "w-full text-left p-2.5 rounded-xl transition-all mb-1 group",
-                        s.sessionId === sessionId ? "bg-primary/10 border-primary/20" : "hover:bg-secondary/60"
-                      )}
-                    >
-                      <div className="text-[13px] font-medium truncate mb-0.5 group-hover:text-primary transition-colors">
-                        {s.lastContent || '空对话'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground flex justify-between">
-                        <span>{s.sessionId.slice(0, 8)}...</span>
-                        <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </button>
+                    <div key={s.sessionId} className="relative group/item mb-1">
+                      <button
+                        onClick={() => {
+                          setSessionId(s.sessionId);
+                          localStorage.setItem('magic_ball_session_id', s.sessionId);
+                          setShowSessions(false);
+                        }}
+                        className={cn(
+                          "w-full text-left p-2.5 rounded-xl transition-all group pr-10",
+                          s.sessionId === sessionId ? "bg-primary/10 border-primary/20" : "hover:bg-secondary/60"
+                        )}
+                      >
+                        <div className="text-[13px] font-medium truncate mb-0.5 group-hover:text-primary transition-colors">
+                          {s.lastContent || '空对话'}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground flex justify-between">
+                          <span>{s.sessionId.slice(0, 8)}...</span>
+                          <span>{new Date(s.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => deleteSession(s.sessionId, e)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover/item:opacity-100"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>

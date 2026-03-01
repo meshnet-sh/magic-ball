@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { messages } from '@/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 export async function GET(request: Request) {
@@ -13,18 +13,45 @@ export async function GET(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
-        // Fetch unique session IDs for the user with the latest message and timestamp
-        // SQLite query to get latest message per session
+        // Fetch unique session IDs with latest message content and timestamp
+        // SQLite trick: MAX() in a subquery grouped by session_id picks the correct row
         const sessionsList = await db.select({
             sessionId: messages.sessionId,
             lastContent: messages.content,
             createdAt: messages.createdAt,
         }).from(messages)
-            .where(eq(messages.userId, userId))
-            .groupBy(messages.sessionId)
+            .where(and(
+                eq(messages.userId, userId),
+                sql`id IN (SELECT id FROM (SELECT id, MAX(created_at) FROM messages WHERE user_id = ${userId} GROUP BY session_id))`
+            ))
             .orderBy(desc(messages.createdAt));
 
         return NextResponse.json({ success: true, data: sessionsList });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const userId = await getVerifiedUserIdFromCookie(request);
+        if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+
+        const url = new URL(request.url);
+        const sessionId = url.searchParams.get('sessionId');
+
+        if (!sessionId) {
+            return NextResponse.json({ success: false, error: 'Session ID is required' }, { status: 400 });
+        }
+
+        const { env } = await getCloudflareContext();
+        const db = getDb(env.DB);
+
+        // Delete all messages belonging to this session for the current user
+        await db.delete(messages)
+            .where(and(eq(messages.userId, userId), eq(messages.sessionId, sessionId)));
+
+        return NextResponse.json({ success: true, message: 'Session deleted successfully' });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
