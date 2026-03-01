@@ -57,6 +57,16 @@ export default function SettingsPage() {
         init()
     }, [])
 
+    useEffect(() => {
+        if (!isAuthenticated) return
+        if (typeof window === 'undefined') return
+        const isMobile = window.innerWidth < 768
+        const fromIntent = new URLSearchParams(window.location.search).get('intent')
+        if (isMobile && fromIntent !== 'settings') {
+            router.replace("/")
+        }
+    }, [isAuthenticated, router])
+
     const loadSettings = async () => {
         try {
             const res = await fetch("/api/settings")

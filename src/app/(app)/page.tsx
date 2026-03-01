@@ -847,7 +847,7 @@ export default function Home() {
           <p className="text-lg text-muted-foreground mb-8">
             你个人的、高度可扩展的全能效率工具主控台。
           </p>
-          <Link href="/settings" className="w-full">
+          <Link href="/settings?intent=settings" className="w-full">
             <Button size="lg" className="w-full rounded-2xl h-14 text-base font-medium shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
               配置密钥进入系统 <ArrowRight className="ml-2 w-5 h-5" />
             </Button>

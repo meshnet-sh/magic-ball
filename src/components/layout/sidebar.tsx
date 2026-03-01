@@ -26,7 +26,7 @@ const NAV_ITEMS = [
     { href: "/tools/polls", label: "投票收集", icon: Vote },
     { href: "/tools/scheduler", label: "日程调度", icon: Calendar },
     { href: "/tools/api", label: "外部接口", icon: Link2 },
-    { href: "/settings", label: "系统设置", icon: Settings },
+    { href: "/settings?intent=settings", label: "系统设置", icon: Settings },
     { href: "/help", label: "使用帮助", icon: BookOpen },
 ]
 

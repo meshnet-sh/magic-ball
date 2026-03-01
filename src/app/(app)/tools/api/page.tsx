@@ -108,7 +108,7 @@ export default function ApiDashboardPage() {
                         <Button
                             variant="default"
                             className="bg-primary/10 text-primary hover:bg-primary/20 flex-1"
-                            onClick={() => router.push("/settings")}
+                            onClick={() => router.push("/settings?intent=settings")}
                         >
                             去设置配置
                         </Button>
