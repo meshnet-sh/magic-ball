@@ -19,79 +19,7 @@ interface ChatMessage {
 
 const MAX_RETRIES = 5
 
-function Sidebar({ isOpen, setIsOpen, setIsAuthenticated }: { isOpen: boolean, setIsOpen: (v: boolean) => void, setIsAuthenticated: (v: boolean | null) => void }) {
-  const tools = [
-    { name: '闪念笔记', icon: Zap, href: '/tools/ideas', desc: '极速随身便签' },
-    { name: '投票收集', icon: Vote, href: '/tools/polls', desc: '匿名投票征集' },
-    { name: '日程调度', icon: Calendar, href: '/tools/scheduler', desc: '定时或重复任务' },
-    { name: '外部接口', icon: Link2, href: '/tools/api', desc: '系统API集成' },
-    { name: '系统设置', icon: Settings, href: '/settings', desc: '密钥与账号管理' },
-    { name: '使用帮助', icon: BookOpen, href: '/help', desc: '指令说明与帮助' },
-  ];
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth', { method: 'DELETE' });
-      setIsAuthenticated(false);
-    } catch { }
-  };
-
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
-      {/* Sidebar sidebar */}
-      <div className={cn(
-        "fixed md:static inset-y-0 left-0 z-50 w-64 bg-secondary/30 backdrop-blur-xl border-r border-border/50 flex flex-col transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
-        <div className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <Sparkles size={16} className="text-primary" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">Magic Ball</span>
-          </div>
-          <Button variant="ghost" size="icon" className="md:hidden rounded-full" onClick={() => setIsOpen(false)}>
-            <X size={20} />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          <div className="text-xs font-semibold text-muted-foreground mb-3 px-2 uppercase tracking-wider">
-            工具箱
-          </div>
-          {tools.map((t, i) => (
-            <Link key={i} href={t.href} onClick={() => setIsOpen(false)} className="block outline-none">
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/50 text-foreground/80 hover:text-foreground transition-all group">
-                <div className="p-1.5 rounded-lg bg-background border border-border/50 group-hover:border-primary/30 group-hover:text-primary transition-colors">
-                  <t.icon size={16} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">{t.name}</span>
-                  <span className="text-[10px] text-muted-foreground">{t.desc}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        <div className="p-4 border-t border-border/50">
-          <Button variant="outline" className="w-full justify-center rounded-xl bg-background/50 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all text-sm h-10" onClick={handleLogout}>
-            退出登录
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-}
-
+// Sidebar removed in favor of global AppLayout Sidebar.
 function AICommandCenter() {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -432,7 +360,7 @@ function AICommandCenter() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background relative z-10">
+    <div className="flex flex-col h-full bg-transparent relative z-10 -m-4 md:-m-6 lg:-m-8">
       {/* Messages Area */}
       <div
         ref={scrollRef}
@@ -456,10 +384,8 @@ function AICommandCenter() {
                 m.role === 'user'
                   ? "bg-primary text-primary-foreground rounded-br-sm shadow-md shadow-primary/10"
                   : m.status === 'error'
-                    ? "bg-red-500/10 text-red-400 border border-red-500/20 rounded-bl-sm"
-                    : m.status === 'success' && m.command?.action !== 'chat'
-                      ? "bg-secondary/40 text-foreground border border-border/30 rounded-bl-sm"
-                      : "bg-transparent text-foreground"
+                    ? "bg-destructive/10 text-destructive border border-destructive/20 rounded-bl-sm"
+                    : "bg-secondary/40 text-foreground border border-border/30 rounded-bl-sm"
               )}>
                 {m.role === 'assistant' && (m.status === 'success' || m.status === 'error') ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-secondary prose-pre:border prose-pre:border-border/50">
@@ -571,7 +497,6 @@ function AICommandCenter() {
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then((d: any) => {
@@ -594,64 +519,38 @@ export default function Home() {
 
   if (isAuthenticated === null) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-background">
+      <div className="h-[50vh] w-full flex items-center justify-center bg-transparent">
         <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Dynamic Background Blob */}
+    <>
       <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
-      {isAuthenticated && (
-        <Sidebar
-          isOpen={isSidebarOpen}
-          setIsOpen={setIsSidebarOpen}
-          setIsAuthenticated={setIsAuthenticated}
-        />
-      )}
-
-      <main className="flex-1 flex flex-col min-w-0 h-full relative z-10">
-        {/* Mobile Header */}
-        {isAuthenticated && (
-          <div className="md:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background/80 backdrop-blur-xl z-20">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-                <Sparkles size={14} className="text-primary" />
-              </div>
-              <span className="font-bold tracking-tight text-base">Magic Ball</span>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)} className="rounded-full">
-              <Menu size={20} />
+      {isAuthenticated ? (
+        <AICommandCenter />
+      ) : (
+        <div className="flex flex-col items-center justify-center h-[70vh] max-w-md mx-auto p-6 text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">
+            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-20" />
+            <Sparkles size={40} className="text-primary" />
+          </div>
+          <h1 className="text-4xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/70">
+            Magic Ball
+          </h1>
+          <p className="text-lg text-muted-foreground mb-8">
+            你个人的、高度可扩展的全能效率工具主控台。
+          </p>
+          <Link href="/settings" className="w-full">
+            <Button size="lg" className="w-full rounded-2xl h-14 text-base font-medium shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
+              配置密钥进入系统 <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
-          </div>
-        )}
-
-        {isAuthenticated ? (
-          <AICommandCenter />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto p-6 text-center animate-in fade-in zoom-in-95 duration-500">
-            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">
-              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-20" />
-              <Sparkles size={40} className="text-primary" />
-            </div>
-            <h1 className="text-4xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/70">
-              Magic Ball
-            </h1>
-            <p className="text-lg text-muted-foreground mb-8">
-              你个人的、高度可扩展的全能效率工具主控台。
-            </p>
-            <Link href="/settings" className="w-full">
-              <Button size="lg" className="w-full rounded-2xl h-14 text-base font-medium shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
-                配置密钥进入系统 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-          </div>
-        )}
-      </main>
-    </div>
+          </Link>
+        </div>
+      )}
+    </>
   );
 }
