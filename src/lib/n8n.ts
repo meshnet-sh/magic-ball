@@ -54,5 +54,14 @@ export async function triggerN8nWorkflow(db: ReturnType<typeof getDb>, userId: s
         throw new Error(`n8n webhook failed (${response.status}): ${text}`);
     }
 
-    return await response.json().catch(() => ({ success: true }));
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+        return { success: true };
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { success: true, message: text, raw: text };
+    }
 }

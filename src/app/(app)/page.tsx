@@ -19,6 +19,13 @@ interface ChatMessage {
 
 const MAX_RETRIES = 5
 const getSessionCacheKey = (sid: string) => `magic_ball_messages_${sid}`
+const extractWorkflowMessage = (data: any, fallbackEvent: string) => {
+  if (!data) return `🚀 已触发外部自动化工作流: ${fallbackEvent}`
+  if (typeof data.message === 'string' && data.message.trim()) return data.message
+  if (typeof data.data === 'string' && data.data.trim()) return data.data
+  if (typeof data.result === 'string' && data.result.trim()) return data.result
+  return `🚀 已触发外部自动化工作流: ${fallbackEvent}`
+}
 
 // Sidebar removed in favor of global AppLayout Sidebar.
 function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSessionId: (id: string) => void }) {
@@ -390,9 +397,9 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ event: cmd.event, payload: cmd.payload })
           })
-          if (res.ok) return { ok: true, message: `🚀 已触发外部自动化工作流: ${cmd.event}` }
-          const err = await res.json().catch(() => ({}))
-          return { ok: false, message: `外部工作流触发失败: ${(err as any).error || res.statusText}` }
+          const data = await res.json().catch(() => ({}))
+          if (res.ok) return { ok: true, message: extractWorkflowMessage(data, cmd.event || 'default_event') }
+          return { ok: false, message: `外部工作流触发失败: ${(data as any).error || res.statusText}` }
         }
         case 'chat':
           return { ok: true, message: cmd.message || '好的' }
