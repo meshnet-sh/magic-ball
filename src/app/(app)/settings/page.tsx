@@ -31,6 +31,7 @@ export default function SettingsPage() {
     const [chatHistoryLimit, setChatHistoryLimit] = useState("50")
     const [chatHistoryWarnThreshold, setChatHistoryWarnThreshold] = useState("80")
     const [feishuOpenId, setFeishuOpenId] = useState("")
+    const [defaultEmailRecipient, setDefaultEmailRecipient] = useState("")
     const [showKey, setShowKey] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
@@ -83,6 +84,7 @@ export default function SettingsPage() {
                 if (data.data.chat_history_limit) setChatHistoryLimit(String(data.data.chat_history_limit))
                 if (data.data.chat_history_warn_threshold) setChatHistoryWarnThreshold(String(data.data.chat_history_warn_threshold))
                 if (data.data.feishu_open_id) setFeishuOpenId(data.data.feishu_open_id)
+                if (data.data.default_email_recipient) setDefaultEmailRecipient(data.data.default_email_recipient)
                 if (data.data.integrations) {
                     try {
                         const parsed = JSON.parse(data.data.integrations)
@@ -115,6 +117,7 @@ export default function SettingsPage() {
             }))
 
             await saveSetting("feishu_open_id", feishuOpenId)
+            await saveSetting("default_email_recipient", defaultEmailRecipient.trim())
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
         } finally { setIsSaving(false) }
@@ -208,6 +211,20 @@ export default function SettingsPage() {
                             <p className="text-[10px] text-muted-foreground leading-relaxed">
                                 在飞书对机器人说话获取 <b>Open ID</b> 后，填写至此框进行双端联通。<br />
                                 联通后，飞书指令将直接同步至当前账号。
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">默认收件邮箱（用于发邮件）</label>
+                            <input
+                                type="email"
+                                value={defaultEmailRecipient}
+                                onChange={e => setDefaultEmailRecipient(e.target.value)}
+                                placeholder="you@example.com"
+                                className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                当你说“发邮件”但未指定收件人时，系统优先使用这里；若为空，则回退到当前账号邮箱。
                             </p>
                         </div>
 

@@ -24,12 +24,33 @@ export async function triggerN8nWorkflow(db: ReturnType<typeof getDb>, userId: s
         throw new Error("n8n webhook URL is not configured");
     }
 
+    // Fill default email recipient when users ask to send email without explicit `to`.
+    let normalizedPayload = payload;
+    if (eventName === 'send_email') {
+        const p: any = (payload && typeof payload === 'object') ? { ...payload } : {};
+        const hasRecipient = typeof p.to === 'string' && p.to.trim().length > 0;
+        if (!hasRecipient) {
+            const recipientSetting = await db.select().from(userSettings)
+                .where(and(eq(userSettings.userId, userId), eq(userSettings.key, 'default_email_recipient')))
+                .get();
+            const configuredRecipient = recipientSetting?.value?.trim();
+
+            if (configuredRecipient) {
+                p.to = configuredRecipient;
+            } else {
+                const user = await db.select().from(users).where(eq(users.id, userId)).get();
+                if (user?.email) p.to = user.email;
+            }
+        }
+        normalizedPayload = p;
+    }
+
     // 3. Prepare Request payload
     const finalPayload = {
         event: eventName,
         source: "magic-ball",
         timestamp: new Date().toISOString(),
-        data: payload
+        data: normalizedPayload
     };
 
     const headers: Record<string, string> = {

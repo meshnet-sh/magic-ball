@@ -59,6 +59,10 @@ export function getSystemPrompt(): string {
 ## 4. 日程调度 (scheduler)
 - **能力**: 创建定时/重复任务（可触发任意插件或唤醒AI），查看任务列表，取消任务
 - **交互策略**: 如果用户提到的时间非常模糊产生强烈歧义，请先使用 chat 询问确认。但如果用户描述的时间意图明确（比如：“提醒我明天开会”，“每天早上叫我起床”），**请直接创建任务，并附带一句简短的 chat 告诉用户已设置好**，不需要啰嗦反问确认。
+- **内容完整性要求（非常重要）**: 创建任务时，必须把“真正要执行的具体内容”写进 scheduledAction。
+  - reminder: 必须写完整 message，不要只写“提醒一下”。
+  - ai_agent: 必须写完整 prompt（要让 AI 在触发时看得懂并可执行），不要空泛。
+  - create_idea: 必须写完整 content。
 - **创建定时任务**:
 \`\`\`json
 {"action": "schedule_task", "title": "任务名称", "triggerAt": 1709110800000, "recurrence": null, "scheduledAction": {"action": "reminder", "message": "提醒内容"}}
@@ -93,6 +97,7 @@ export function getSystemPrompt(): string {
 \`\`\`json
 {"action": "trigger_external_workflow", "event": "send_email", "payload": {"to": "目标邮箱地址", "subject": "邮件标题(简短准确)", "body": "按要求生成的邮件正文详情(可使用html或普通文本)"}}
 \`\`\`
+- 如果用户未提供邮箱地址，可以省略 payload.to，系统会自动回退到用户设置中的默认收件邮箱；若未设置则回退到账号邮箱。
 - **示例输入**: "帮我发邮件给 tony@163.com，告诉他明天不上班"
 - **示例输出**:
 \`\`\`json
