@@ -69,7 +69,11 @@ export async function POST(request: Request, context: { params: Promise<{ userId
 
             // Explicitly save text output from external automation (like 'chat' actions) to the UI
             if (result.ok && payload.action === 'chat') {
-                await saveSystemMessage(db, targetUser.id, result.message, 'system');
+                try {
+                    await saveSystemMessage(db, targetUser.id, result.message, 'system');
+                } catch (e) {
+                    console.error("[n8n-inbound] saveSystemMessage failed:", e);
+                }
             }
 
             return NextResponse.json({ success: result.ok, data: result.message });

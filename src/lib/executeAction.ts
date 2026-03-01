@@ -430,13 +430,24 @@ export async function saveSystemMessage(
     content: string,
     source: 'system' | 'ai' = 'system'
 ): Promise<void> {
-    await db.insert(messages).values({
-        id: crypto.randomUUID(),
-        userId,
-        content,
-        source,
-        createdAt: Date.now(),
-    });
+    const targetUser = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+    if (!targetUser) {
+        console.warn(`[saveSystemMessage] Skip insert: user not found (${userId})`);
+        return;
+    }
+
+    try {
+        await db.insert(messages).values({
+            id: crypto.randomUUID(),
+            userId,
+            content,
+            source,
+            createdAt: Date.now(),
+        });
+    } catch (e) {
+        console.error("[saveSystemMessage] Failed to insert message:", e);
+        return;
+    }
 
     // Forward to Feishu if bound
     try {
