@@ -94,7 +94,7 @@ export default function SchedulerPage() {
         try {
             const triggerAt = new Date(triggerTime).getTime()
             let payload: any = {}
-            if (actionType === "create_idea") payload = { action: "create_idea", content: actionContent, tags: [] }
+            if (actionType === "create_idea") payload = { action: "create_idea", content: actionContent, tags: [], recordIntent: "explicit" }
             else if (actionType === "ai_agent") payload = { action: "ai_agent", prompt: actionContent }
             else payload = { action: "reminder", message: actionContent || title }
 

@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from 'react-markdown';
+import { evaluateCreateIdeaIntent } from "@/lib/ideaGuard";
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -457,6 +458,10 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     try {
       switch (cmd.action) {
         case 'create_idea': {
+          const intent = evaluateCreateIdeaIntent(cmd)
+          if (!intent.allowed) {
+            return { ok: false, message: `已拦截创建笔记：${intent.reason}` }
+          }
           const tags = cmd.tags || []
           const content = tags.length > 0
             ? cmd.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')

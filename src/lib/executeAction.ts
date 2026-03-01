@@ -3,6 +3,7 @@ import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollO
 import { eq, desc, and } from 'drizzle-orm';
 import { triggerN8nWorkflow } from './n8n';
 import { SYSTEM_SESSION_ID } from './messageChannels';
+import { evaluateCreateIdeaIntent } from './ideaGuard';
 
 export interface ActionResult {
     ok: boolean;
@@ -25,13 +26,15 @@ export function getSystemPrompt(): string {
 {
   "action": "create_idea",
   "content": "笔记的文字内容",
-  "tags": ["标签1", "标签2"]
+  "tags": ["标签1", "标签2"],
+  "recordIntent": "explicit | idea_like"
 }
 \`\`\`
+- **约束**: 仅当用户明确要求记录（如“记一下/记录/保存”）或内容本身就是可沉淀想法时，才可使用 create_idea。
 - **示例输入**: "记一下明天下午3点和王总开会"
 - **示例输出**:
 \`\`\`json
-{"action": "create_idea", "content": "明天下午3点和王总开会", "tags": ["会议"]}
+{"action": "create_idea", "content": "明天下午3点和王总开会", "tags": ["会议"], "recordIntent": "explicit"}
 \`\`\`
 
 ## 2. 投票收集 (polls)
@@ -72,7 +75,7 @@ export function getSystemPrompt(): string {
 - recurrence: null(一次性) | "minutes:X"(每X分钟) | "hours:X"(每X小时) | "daily" | "weekly" | "monthly"
 - scheduledAction: **要执行的完整 action 对象**，可以是任何插件操作:
   - {"action": "reminder", "message": "..."} — 提醒
-  - {"action": "create_idea", "content": "...", "tags": [...]} — 创建笔记
+  - {"action": "create_idea", "content": "...", "tags": [...], "recordIntent": "explicit|idea_like"} — 创建笔记
   - {"action": "ai_agent", "prompt": "..."} — **唤醒AI自主决策**
 - **兼容旧字段**: 也可用 taskAction + taskPayload
 - **AI Agent 工作流示例**: 用户说"帮我做一个每日工作流"时，创建多个定时任务:
@@ -119,7 +122,7 @@ export function getSystemPrompt(): string {
 {
   "transcript": "如果用户通过语音输入，把你听到的原文转写在这里；如果是文字输入则填 null",
   "actions": [
-    {"action": "create_idea", "content": "...", "tags": [...]},
+    {"action": "create_idea", "content": "...", "tags": [...], "recordIntent": "explicit|idea_like"},
     {"action": "trigger_external_workflow", "event": "...", "payload": {...}}
   ]
 }
@@ -132,8 +135,9 @@ export function getSystemPrompt(): string {
 2. 多个任务必须拆分为独立 action 分别放入 actions 数组。
 3. 如果你不确定用户想做什么，用 chat 类型回复并**列出你能做的事情**。
 4. tags 中的标签**不要**带 # 号前缀。
-5. Если前一次执行失败了，用户可能会把错误信息告诉你，请根据错误信息调整你的命令重试。
-6. 用中文回复 chat 消息。`;
+5. create_idea 必须带 recordIntent 字段：明确记录意图填 "explicit"，内容本身像想法沉淀填 "idea_like"。
+6. 如果前一次执行失败了，用户可能会把错误信息告诉你，请根据错误信息调整你的命令重试。
+7. 用中文回复 chat 消息。`;
 }
 
 /**
@@ -154,6 +158,10 @@ export async function executeAction(
 
         switch (cmd.action) {
             case 'create_idea': {
+                const intent = evaluateCreateIdeaIntent(cmd);
+                if (!intent.allowed) {
+                    return { ok: false, message: `⚠️ 已拦截创建笔记：${intent.reason}` };
+                }
                 const tags = cmd.tags || [];
                 const content = tags.length > 0
                     ? cmd.content + ' ' + tags.map((t: string) => `#${t}`).join(' ')
@@ -286,9 +294,10 @@ export async function executeAction(
 3. 只有当用户明确要求“仅基于内部记录”时，才限制在上下文内回答。
 4. 如果任务需要实时外部信息（如最新新闻）而当前能力不足，请明确说明限制，并给出可执行替代方案（例如让用户配置相应外部工作流）。
 5. 不要用“近期内部没有相关记录”来敷衍结束任务，除非用户确实要求只查内部记录。
+6. 只有在 prompt 明确要求“记录为笔记”或输出本身明显是可沉淀想法时，才允许 create_idea。
 
 可用 actions:
-- {"action": "create_idea", "content": "...", "tags": [...]}
+- {"action": "create_idea", "content": "...", "tags": [...], "recordIntent": "explicit|idea_like"}
 - {"action": "reminder", "message": "..."}
 - {"action": "schedule_task", "title": "...", "triggerAt": epoch_ms, "recurrence": "...", "scheduledAction": {...}}
 - {"action": "trigger_external_workflow", "event": "...", "payload": {"key": "value"}}
