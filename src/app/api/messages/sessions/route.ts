@@ -14,7 +14,7 @@ export async function GET(request: Request) {
         const db = getDb(env.DB);
 
         // Fetch unique session IDs with latest message content and timestamp
-        // SQLite trick: MAX() in a subquery grouped by session_id picks the correct row
+        // SQLite trick: GROUP BY + HAVING MAX() picks the correct row
         const sessionsList = await db.select({
             sessionId: messages.sessionId,
             lastContent: messages.content,
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
         }).from(messages)
             .where(and(
                 eq(messages.userId, userId),
-                sql`id IN (SELECT id FROM (SELECT id, MAX(created_at) FROM messages WHERE user_id = ${userId} GROUP BY session_id))`
+                sql`${messages.id} IN (SELECT ${messages.id} FROM ${messages} WHERE ${messages.userId} = ${userId} GROUP BY ${messages.sessionId} HAVING MAX(${messages.createdAt}))`
             ))
             .orderBy(desc(messages.createdAt));
 

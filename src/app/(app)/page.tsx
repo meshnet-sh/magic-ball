@@ -165,13 +165,15 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   const addAssistantMessage = (text: string, status: 'success' | 'error' | 'pending' = 'success', command?: any, errorDetail?: string) => {
     setMessages(prev => [...prev, { role: 'assistant', text, command, status, errorDetail }])
-    if (status === 'success' || status === 'error') {
-      fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionId })
-      }).catch(() => { })
-    }
+    fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionId })
+    })
+      .then(() => {
+        if (showSessions) loadSessions()
+      })
+      .catch(() => { })
   }
 
   const buildApiMessages = (history: ChatMessage[], newUserText?: string) => {
@@ -398,7 +400,11 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: userText, source: 'user', sessionId: sessionId })
-    }).catch(() => { })
+    })
+      .then(() => {
+        if (showSessions) loadSessions()
+      })
+      .catch(() => { })
 
     try {
       let currentHistory = newHistory
