@@ -6,6 +6,7 @@ import { eq, and, lte } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 import { claimAndAdvanceScheduledTask, runClaimedScheduledTask } from '@/lib/schedulerRunner';
+import { SYSTEM_SESSION_ID } from '@/lib/messageChannels';
 
 // POST — check & execute all due tasks for the current user
 export async function POST(request: Request) {
@@ -20,12 +21,6 @@ export async function POST(request: Request) {
         if (!user) {
             return NextResponse.json({ success: false, error: 'Session invalid: user not found, please login again' }, { status: 401 });
         }
-
-        let sessionId = 'default';
-        try {
-            const body: any = await request.clone().json();
-            if (body && body.sessionId) sessionId = body.sessionId;
-        } catch { }
 
         // Find all due active tasks
         const dueTasks = await db.select().from(scheduledTasks)
@@ -59,7 +54,7 @@ export async function POST(request: Request) {
                 await db.insert(messages).values({
                     id: crypto.randomUUID(),
                     userId,
-                    sessionId,
+                    sessionId: SYSTEM_SESSION_ID,
                     content: notification,
                     source: 'system',
                     createdAt: Date.now()

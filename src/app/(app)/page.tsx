@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings, Menu, X, ImagePlus } from "lucide-react";
+import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings, Menu, X, ImagePlus, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -28,6 +28,13 @@ interface SessionSummary {
   lastContent: string
   createdAt: number
   messageCount: number
+}
+
+interface SystemFeedMessage {
+  id: string
+  content: string
+  createdAt: number
+  source: string
 }
 
 const MAX_RETRIES = 5
@@ -63,6 +70,10 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [showSessions, setShowSessions] = useState(false)
   const [sessionSearch, setSessionSearch] = useState("")
+  const [showSystemFeed, setShowSystemFeed] = useState(false)
+  const [systemFeed, setSystemFeed] = useState<SystemFeedMessage[]>([])
+  const [isLoadingSystemFeed, setIsLoadingSystemFeed] = useState(false)
+  const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -157,11 +168,30 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   useEffect(() => {
     if (typeof document === 'undefined') return
-    document.body.style.overflow = showSessions ? 'hidden' : ''
+    document.body.style.overflow = (showSessions || showSystemFeed) ? 'hidden' : ''
     return () => {
       document.body.style.overflow = ''
     }
-  }, [showSessions])
+  }, [showSessions, showSystemFeed])
+
+  const loadSystemFeed = async () => {
+    setIsLoadingSystemFeed(true)
+    try {
+      const res = await fetch('/api/messages/system', { cache: 'no-store' })
+      const data = await res.json()
+      if (data?.success && Array.isArray(data.data)) {
+        setSystemFeed(data.data)
+      }
+    } catch {
+      setSystemFeed([])
+    } finally {
+      setIsLoadingSystemFeed(false)
+    }
+  }
+
+  useEffect(() => {
+    if (showSystemFeed) loadSystemFeed()
+  }, [showSystemFeed])
 
   const deleteSession = async (sid: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -260,15 +290,26 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   const addAssistantMessage = (text: string, status: 'success' | 'error' | 'pending' = 'success', command?: any, errorDetail?: string) => {
     setMessages(prev => [...prev, { role: 'assistant', text, command, status, errorDetail }])
-    fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionId })
-    })
-      .then(() => {
-        if (showSessions) loadSessions()
+    persistMessage({ content: text, source: 'ai', sessionId })
+  }
+
+  const persistMessage = async (payload: { content: string; source: 'user' | 'ai' | 'system'; sessionId: string }) => {
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
-      .catch(() => { })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as any).error || res.statusText || `HTTP ${res.status}`)
+      }
+      setPersistenceWarning(null)
+      if (showSessions) loadSessions()
+    } catch (e) {
+      console.error('Failed to persist message:', e)
+      setPersistenceWarning('会话消息写入失败：当前消息可能只在本地显示，历史会话统计可能不完整。请检查登录状态或网络后重试。')
+    }
   }
 
   const buildApiMessages = (history: ChatMessage[], newUserText?: string) => {
@@ -510,15 +551,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     setIsProcessing(true)
 
     // Save user message to DB
-    fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: displayText, source: 'user', sessionId: sessionId })
-    })
-      .then(() => {
-        if (showSessions) loadSessions()
-      })
-      .catch(() => { })
+    void persistMessage({ content: displayText, source: 'user', sessionId })
 
     try {
       let currentHistory = newHistory
@@ -684,6 +717,11 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
       {/* Input Area */}
       <div className="p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        {persistenceWarning && (
+          <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {persistenceWarning}
+          </div>
+        )}
         <div className="max-w-4xl mx-auto flex items-end gap-2 relative">
           <div className="absolute -top-10 left-2 flex items-center gap-2">
             <button
@@ -697,6 +735,13 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
             >
               <BookOpen size={12} />
               <span>历史会话</span>
+            </button>
+            <button
+              onClick={() => setShowSystemFeed(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shadow-sm border border-border/50"
+            >
+              <BellRing size={12} />
+              <span>系统消息</span>
             </button>
             <button onClick={() => {
               setIsProcessing(true)
@@ -878,6 +923,51 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSystemFeed && (
+        <div className="fixed inset-0 z-[110] bg-black/45 backdrop-blur-sm p-4 md:p-8">
+          <div className="mx-auto h-full w-full max-w-4xl rounded-3xl border border-border/50 bg-background/95 shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 md:p-5 border-b border-border/50 flex items-center gap-3">
+              <div>
+                <div className="text-base md:text-lg font-semibold tracking-tight">系统消息</div>
+                <div className="text-xs text-muted-foreground">定时任务、系统通知等独立展示，不混入聊天会话</div>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={loadSystemFeed}
+                  className="h-9 px-3 rounded-xl border border-border/50 bg-secondary/60 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw size={12} className={isLoadingSystemFeed ? "animate-spin" : ""} />
+                  刷新
+                </button>
+                <button
+                  onClick={() => setShowSystemFeed(false)}
+                  className="h-9 w-9 rounded-xl border border-border/50 bg-secondary/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2">
+              {isLoadingSystemFeed ? (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">加载中...</div>
+              ) : systemFeed.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">暂无系统消息</div>
+              ) : (
+                systemFeed.map((m) => (
+                  <div key={m.id} className="rounded-xl border border-border/50 bg-secondary/20 p-3">
+                    <div className="text-[11px] text-muted-foreground mb-1.5">
+                      {new Date(m.createdAt).toLocaleString('zh-CN')}
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap">{m.content}</div>
+                  </div>
+                ))
               )}
             </div>
           </div>

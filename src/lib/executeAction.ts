@@ -2,6 +2,7 @@ import { getDb } from '@/db/index';
 import { ideas, scheduledTasks, userSettings, aiMemories, messages, polls, pollOptions, users } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { triggerN8nWorkflow } from './n8n';
+import { SYSTEM_SESSION_ID } from './messageChannels';
 
 export interface ActionResult {
     ok: boolean;
@@ -463,6 +464,7 @@ export async function saveSystemMessage(
         await db.insert(messages).values({
             id: crypto.randomUUID(),
             userId,
+            sessionId: SYSTEM_SESSION_ID,
             content,
             source,
             createdAt: Date.now(),

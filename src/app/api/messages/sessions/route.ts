@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { messages } from '@/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, ne } from 'drizzle-orm';
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
+import { SYSTEM_SESSION_ID } from '@/lib/messageChannels';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
             createdAt: messages.createdAt,
             id: messages.id,
         }).from(messages)
-            .where(eq(messages.userId, userId))
+            .where(and(eq(messages.userId, userId), ne(messages.sessionId, SYSTEM_SESSION_ID)))
             .orderBy(desc(messages.createdAt), desc(messages.id));
 
         const sessionsList: Array<{ sessionId: string; lastContent: string; createdAt: number; messageCount: number }> = [];

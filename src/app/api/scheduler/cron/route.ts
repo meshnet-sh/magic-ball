@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { scheduledTasks, userSettings, messages } from '@/db/schema';
-import { eq, and, lte, desc } from 'drizzle-orm';
+import { eq, and, lte } from 'drizzle-orm';
 import { getAccessToken } from '@/lib/feishu';
 import { claimAndAdvanceScheduledTask, runClaimedScheduledTask } from '@/lib/schedulerRunner';
+import { SYSTEM_SESSION_ID } from '@/lib/messageChannels';
 
 const CRON_SECRET = 'mb-cron-2026-secret';
 
@@ -43,48 +44,16 @@ export async function GET(request: Request) {
         for (const uId of Object.keys(userResults)) {
             const notification = `📋 Magic Ball 定时任务报告\n\n${userResults[uId].join('\n\n')}`;
 
-            // Always persist to web chat first.
+            // Persist to dedicated system feed instead of chat sessions.
             try {
-                const activeSessionSetting = await db.select({
-                    value: userSettings.value,
-                }).from(userSettings)
-                    .where(and(eq(userSettings.userId, uId), eq(userSettings.key, 'active_chat_session_id')))
-                    .limit(1);
-
-                const recentMessages = await db.select({
-                    sessionId: messages.sessionId,
-                }).from(messages)
-                    .where(eq(messages.userId, uId))
-                    .orderBy(desc(messages.createdAt))
-                    .limit(50);
-
-                const targetSessionIds: string[] = [];
-                const pushSessionId = (sid?: string | null) => {
-                    const normalized = sid?.trim();
-                    if (!normalized) return;
-                    if (targetSessionIds.includes(normalized)) return;
-                    targetSessionIds.push(normalized);
-                };
-
-                // Prefer active session, then mirror to recent sessions to avoid "message written but not visible".
-                pushSessionId(activeSessionSetting[0]?.value);
-                for (const row of recentMessages) {
-                    pushSessionId(row.sessionId);
-                    if (targetSessionIds.length >= 5) break;
-                }
-                pushSessionId('default');
-                if (targetSessionIds.length === 0) pushSessionId('default');
-
-                await db.insert(messages).values(
-                    targetSessionIds.map((sessionId) => ({
-                        id: crypto.randomUUID(),
-                        userId: uId,
-                        sessionId,
-                        content: notification,
-                        source: 'system',
-                        createdAt: Date.now(),
-                    }))
-                );
+                await db.insert(messages).values({
+                    id: crypto.randomUUID(),
+                    userId: uId,
+                    sessionId: SYSTEM_SESSION_ID,
+                    content: notification,
+                    source: 'system',
+                    createdAt: Date.now(),
+                });
             } catch (e) {
                 console.error("Failed to save cron result to messages DB", e);
             }
