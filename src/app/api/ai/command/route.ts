@@ -73,8 +73,8 @@ export async function POST(request: Request) {
         // Load recent memories
         const memStr = await loadMemories(db, userId, 15);
 
-        // Call Gemini API
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        // Call Gemini API with Streaming
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
         const geminiRes = await fetch(geminiUrl, {
             method: 'POST',
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         if (!geminiRes.ok) {
             const errData: any = await geminiRes.json().catch(() => ({}));
             return NextResponse.json({
-                success: true,
+                success: true, // we still return success=true so UI can show the message
                 command: {
                     action: 'chat',
                     message: `❌ Gemini API 调用失败: ${errData?.error?.message || geminiRes.statusText}`
@@ -102,42 +102,15 @@ export async function POST(request: Request) {
             });
         }
 
-        const geminiData: any = await geminiRes.json();
-        const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+        // Return the SSE stream directly to the client
+        return new NextResponse(geminiRes.body, {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            }
+        });
 
-        if (!responseText) {
-            return NextResponse.json({
-                success: true,
-                command: { action: 'chat', message: '🤔 AI 没有返回有效响应，请重试。' }
-            });
-        }
-
-        try {
-            const parsed = JSON.parse(responseText);
-            let actions = parsed.actions || [parsed];
-
-            // Save conversation memory
-            const userMsg = messages.filter(m => m.role === 'user').pop()?.text || '(语音/无文本)';
-            const actionSummary = actions.map((a: any) =>
-                a.action === 'chat' ? `回复: ${a.message?.substring(0, 50)}` : `执行: ${a.action}`
-            ).join(', ');
-
-            await saveMemory(db, userId, 'conversation',
-                `用户: "${userMsg}" → AI: ${actionSummary}`,
-                3, ['chat'], 'web');
-
-            return NextResponse.json({
-                success: true,
-                transcript: parsed.transcript || null,
-                actions
-            });
-        } catch {
-            return NextResponse.json({
-                success: true,
-                transcript: null,
-                actions: [{ action: 'chat', message: responseText }]
-            });
-        }
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

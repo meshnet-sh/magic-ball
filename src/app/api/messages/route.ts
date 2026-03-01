@@ -6,17 +6,20 @@ import { eq, desc, and } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
-// GET: Fetch recent messages for the current user
+// GET: Fetch recent messages for the current user (filter by sessionId if provided)
 export async function GET(request: Request) {
     try {
         const userId = await getVerifiedUserIdFromCookie(request);
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
+        const url = new URL(request.url);
+        const sessionId = url.searchParams.get('sessionId') || 'default';
+
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
         const recentMessages = await db.select().from(messages)
-            .where(eq(messages.userId, userId))
+            .where(and(eq(messages.userId, userId), eq(messages.sessionId, sessionId)))
             .orderBy(desc(messages.createdAt))
             .limit(50);
 
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
             db.insert(messages).values({
                 id: crypto.randomUUID(),
                 userId,
+                sessionId: m.sessionId || 'default',
                 content: m.content || m.text,
                 source: m.source || (m.role === 'user' ? 'user' : 'system'),
                 createdAt: m.createdAt || Date.now(),
@@ -86,7 +90,15 @@ export async function DELETE(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
-        await db.delete(messages).where(eq(messages.userId, userId));
+        const url = new URL(request.url);
+        const sessionId = url.searchParams.get('sessionId');
+
+        if (sessionId) {
+            await db.delete(messages).where(and(eq(messages.userId, userId), eq(messages.sessionId, sessionId)));
+        } else {
+            // Unsafe to delete all normally, but matching original behavior for backwards compat
+            await db.delete(messages).where(eq(messages.userId, userId));
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

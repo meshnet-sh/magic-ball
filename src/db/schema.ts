@@ -86,6 +86,7 @@ export const aiMemories = sqliteTable("ai_memories", {
 export const messages = sqliteTable("messages", {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull().references(() => users.id),
+    sessionId: text("session_id").notNull().default("default"),
     content: text("content").notNull(),
     source: text("source").notNull().default("system"), // "system" | "ai"
     createdAt: integer("created_at").notNull(),

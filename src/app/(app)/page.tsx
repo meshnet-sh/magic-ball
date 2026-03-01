@@ -25,6 +25,7 @@ function AICommandCenter() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const isLoadedRef = useRef(false)
+  const sessionIdRef = useRef<string>('default')
   const [isRecording, setIsRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -37,7 +38,7 @@ function AICommandCenter() {
 
   useEffect(() => {
     const loadMessages = () => {
-      fetch('/api/messages').then(r => r.json()).then(data => {
+      fetch(`/api/messages?sessionId=${sessionIdRef.current}`).then(r => r.json()).then(data => {
         if (data.success && data.data) {
           setMessages(data.data.map((m: any) => ({
             role: m.source === 'user' ? 'user' : 'assistant',
@@ -50,6 +51,15 @@ function AICommandCenter() {
 
     if (!isLoadedRef.current) {
       isLoadedRef.current = true
+
+      // Load or generate session ID
+      let sid = localStorage.getItem('magic_ball_session_id')
+      if (!sid) {
+        sid = crypto.randomUUID()
+        localStorage.setItem('magic_ball_session_id', sid)
+      }
+      sessionIdRef.current = sid
+
       loadMessages()
     }
 
@@ -141,7 +151,7 @@ function AICommandCenter() {
       fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, source: 'ai' })
+        body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionIdRef.current })
       }).catch(() => { })
     }
   }
@@ -161,15 +171,70 @@ function AICommandCenter() {
     return apiMessages
   }
 
-  const callAI = async (apiMessages: { role: string; text: string }[], audio?: string) => {
+  const callAI = async (
+    apiMessages: { role: string; text: string }[],
+    audio?: string,
+    onStream?: (text: string) => void
+  ) => {
     const res = await fetch("/api/ai/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: apiMessages, audio })
-    })
-    const data = await res.json()
-    if (!data.success) throw new Error(data.error || '请求失败')
-    return { transcript: data.transcript as string | null, actions: data.actions as any[] }
+    });
+
+    if (!res.ok) throw new Error('请求失败');
+
+    // Handle streaming response
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
+    let isCompleteJson = false;
+    let finalData = null;
+
+    if (!reader) throw new Error("无法读取流数据");
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6);
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+            const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textPart) {
+              accumulatedText += textPart;
+              // Pass the progressive text to the UI
+              onStream?.(accumulatedText);
+
+              // Try to parse the accumulated text as JSON to see if it's our action payload
+              try {
+                finalData = JSON.parse(accumulatedText);
+                isCompleteJson = true;
+              } catch {
+                // Not complete yet, which is expected during streaming
+                isCompleteJson = false;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to parse SSE chunk", e);
+          }
+        }
+      }
+    }
+
+    if (isCompleteJson && finalData) {
+      return { transcript: finalData.transcript as string | null, actions: finalData.actions ? finalData.actions : [finalData] as any[] }
+    } else {
+      // Fallback if the AI just output raw text instead of strictly following JSON structure
+      return { transcript: null, actions: [{ action: 'chat', message: accumulatedText || '🤔 AI 返回了无效的格式。' }] }
+    }
   }
 
   const handleSendAudio = async (base64Audio: string) => {
@@ -178,17 +243,22 @@ function AICommandCenter() {
 
     // Placeholder — will be updated with transcript
     const userMsg: ChatMessage = { role: 'user', text: '🎤 识别中...' }
+    const streamMsg: ChatMessage = { role: 'assistant', text: '', status: 'pending' }
     const newHistory = [...messages, userMsg]
-    setMessages(newHistory)
+    setMessages([...newHistory, streamMsg])
 
     try {
       const apiMessages = buildApiMessages(newHistory)
-      const { transcript, actions } = await callAI(apiMessages, base64Audio)
+      const { transcript, actions } = await callAI(apiMessages, base64Audio, (incrementalText) => {
+        setMessages(prev => prev.map((m, i) =>
+          i === prev.length - 1 ? { ...m, text: incrementalText } : m
+        ))
+      })
 
       // Update user bubble with transcript
       if (transcript) {
         setMessages(prev => prev.map((m, i) =>
-          i === prev.length - actions.length - 1 && m.text === '🎤 识别中...'
+          i === prev.length - 2 && m.text === '🎤 识别中...'
             ? { ...m, text: `🎤 "${transcript}"` }
             : m
         ))
@@ -197,6 +267,7 @@ function AICommandCenter() {
       }
 
       // Execute all actions
+      setMessages(prev => prev.filter((_, i) => i !== prev.length - 1)) // remove the temporary streaming bubble
       for (const cmd of actions) {
         if (cmd.action === 'chat') {
           addAssistantMessage(cmd.message, 'success', cmd)
@@ -206,6 +277,7 @@ function AICommandCenter() {
         }
       }
     } catch (err: any) {
+      setMessages(prev => prev.filter((_, i) => i !== prev.length - 1))
       addAssistantMessage(`❌ ${err.message}`, 'error')
     } finally {
       setIsProcessing(false)
@@ -307,7 +379,7 @@ function AICommandCenter() {
     fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: userText, source: 'user' })
+      body: JSON.stringify({ content: userText, source: 'user', sessionId: sessionIdRef.current })
     }).catch(() => { })
 
     try {
@@ -315,8 +387,17 @@ function AICommandCenter() {
       let retryCount = 0
 
       while (retryCount < MAX_RETRIES) {
+        const streamMsg: ChatMessage = { role: 'assistant', text: '', status: 'pending' }
+        setMessages(prev => [...prev, streamMsg])
+
         const apiMessages = buildApiMessages(currentHistory)
-        const { actions } = await callAI(apiMessages)
+        const { actions } = await callAI(apiMessages, undefined, (incrementalText) => {
+          setMessages(prev => prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, text: incrementalText } : m
+          ))
+        })
+
+        setMessages(prev => prev.filter((_, i) => i !== prev.length - 1)) // clear temporary streaming message before action execution
 
         // Execute all actions sequentially
         let allOk = true
@@ -352,19 +433,20 @@ function AICommandCenter() {
         }
       }
     } catch (err: any) {
+      setMessages(prev => prev.filter((m) => m.status !== 'pending'))
       addAssistantMessage(`❌ ${err.message}`, 'error')
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const clearChat = async () => {
+  const createNewChat = () => {
     setMessages([])
-    try {
-      await fetch('/api/messages', { method: 'DELETE' })
-    } catch (err) {
-      console.error('Failed to clear chat history:', err)
-    }
+    const newSid = crypto.randomUUID()
+    localStorage.setItem('magic_ball_session_id', newSid)
+    sessionIdRef.current = newSid
+    // Note: We deliberately don't delete DB messages here. They form the session history.
+    // A future update should add a generic "Chat History" sidebar to navigate sessions.
   }
 
   return (
@@ -441,9 +523,9 @@ function AICommandCenter() {
               <span>同步</span>
             </button>
             {messages.length > 0 && (
-              <button onClick={clearChat} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 text-xs font-medium text-muted-foreground hover:text-red-400 hover:bg-secondary transition-all shadow-sm border border-border/50">
+              <button onClick={createNewChat} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shadow-sm border border-border/50">
                 <Trash2 size={12} />
-                <span>清空</span>
+                <span>新对话</span>
               </button>
             )}
           </div>
