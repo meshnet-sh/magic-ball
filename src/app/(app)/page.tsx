@@ -25,6 +25,19 @@ interface PendingImage {
 
 const MAX_RETRIES = 5
 const getSessionCacheKey = (sid: string) => `magic_ball_messages_${sid}`
+const sanitizeAiText = (text: string) => text.replace(/```json|```/gi, '').trim()
+const extractNaturalChatMessage = (raw: string) => {
+  const cleaned = sanitizeAiText(raw)
+  const match = cleaned.match(/"message"\s*:\s*"((?:\\.|[^"\\])*)"/)
+  if (match?.[1]) {
+    return match[1]
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .trim()
+  }
+  return cleaned
+}
 const extractWorkflowMessage = (data: any, fallbackEvent: string) => {
   if (!data) return `🚀 已触发外部自动化工作流: ${fallbackEvent}`
   if (typeof data.message === 'string' && data.message.trim()) return data.message
@@ -286,10 +299,11 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
     if (isCompleteJson && finalData) {
       return { transcript: finalData.transcript as string | null, actions: finalData.actions ? finalData.actions : [finalData] as any[] }
-    } else {
-      // Fallback if the AI just output raw text instead of strictly following JSON structure
-      return { transcript: null, actions: [{ action: 'chat', message: accumulatedText || '🤔 AI 返回了无效的格式。' }] }
     }
+
+    // Fallback: if model output is malformed JSON, extract a natural chat message instead of raw JSON text.
+    const fallbackText = extractNaturalChatMessage(accumulatedText || '🤔 AI 返回了无效的格式。')
+    return { transcript: null, actions: [{ action: 'chat', message: fallbackText }] }
   }
 
   const handleSendAudio = async (base64Audio: string) => {
