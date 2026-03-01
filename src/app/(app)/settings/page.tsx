@@ -22,6 +22,7 @@ const GEMINI_MODELS = [
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<Tab>("ai")
     const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [isRedirectChecking, setIsRedirectChecking] = useState(true)
     const router = useRouter()
 
     // AI Settings state
@@ -66,7 +67,9 @@ export default function SettingsPage() {
         const fromIntent = new URLSearchParams(window.location.search).get('intent')
         if (isMobile && fromIntent !== 'settings') {
             router.replace("/")
+            return
         }
+        setIsRedirectChecking(false)
     }, [isAuthenticated, router])
 
     const loadSettings = async () => {
@@ -133,7 +136,7 @@ export default function SettingsPage() {
         if (activeTab === "admin") loadAdminData()
     }, [activeTab])
 
-    if (!isAuthenticated) return null
+    if (!isAuthenticated || isRedirectChecking) return null
 
     return (
         <div className="flex flex-col h-full max-w-4xl mx-auto w-full">

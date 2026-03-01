@@ -9,7 +9,7 @@ import { useUIStore } from "@/store/ui-store"
 export function Header() {
     const { theme, setTheme } = useTheme()
     const pathname = usePathname()
-    const { toggleSidebar } = useUIStore()
+    const { toggleSidebar, setSidebarOpen } = useUIStore()
 
     // Quick breadcrumb generation
     const pageName = pathname === "/"
@@ -43,6 +43,15 @@ export function Header() {
                     <span className="sr-only">Toggle theme</span>
                 </Button>
             </div>
+            <Button
+                variant="default"
+                size="icon"
+                onClick={() => setSidebarOpen(true)}
+                className="fixed bottom-5 left-4 z-50 md:hidden rounded-full h-12 w-12 shadow-lg"
+            >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open sidebar</span>
+            </Button>
         </header>
     )
 }
