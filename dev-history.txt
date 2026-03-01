@@ -1,341 +1,29 @@
-# Magic-Ball 开发历史记录
+﻿# Magic Ball 开发历史记录 (Magic Ball Development History)
 
-## 2026-02-25
-- **项目构思初期**: 讨论了开发一个多功能个人工具箱的高层级(High Level)设计。
-- **架构决策**:
-  - 采用基座+插件(工具)架构，各工具数据完全隔离并独立路由。
-  - 数据存储倾向于云端安全存储，选择 Cloudflare 生态 (Pages + D1 数据库)。
-- **技术栈选型**:
-  - 核心框架: Next.js (前后端一体化)
-  - UI 与样式: Tailwind CSS + shadcn/ui
-  - 状态管理: Zustand (本地) + SWR/React Query (数据获取)
-- **环境检查与准备**:
-  - `Node.js` (`v24.14.0`) 和 `npm` (`v11.9.0`) 已安装成功并可用。
-- **初始化工程与 UI 设计**:
-  - 初始框架搭建完成，确认了“科技暗黑风 (Geek Dark Mode)”主色调。
-  - 完成了具备毛玻璃 (Glassmorphism) 特效的自适应侧边栏与主布局基座，并将界面汉化为全中文。
-- **核心工具开发 - 极速闪念笔记 (Idea Logger)**:
-  - 放弃原定 JSON 工具，重新架构以移动端优先 (Mobile-First) 的需求。
-  - 实现了 `idb-keyval` (IndexedDB) 驱动的零延迟本地离线数据存储。
-  - 实现了界面底部吸附的多媒体输入框。
-  - 成功集成了 `MediaRecorder API` 支持原生麦克风语音录制存留。
-  - 支持手机原生调起摄像头拍照录入。
-  - 文本输入支持 `#标签` 的隐式正则提取与高亮展示。
-  - 使用 `date-fns` 实现了诸如“几分钟前”的瀑布流时间组件。
-- **代码审查与部署准备 (Code Review & Deployment)**:
-  - 执行 `npm run lint` 和 `npm run build` 进行全局防御性静态分析，0 警告 0 报错完美通过。
-  - 成功生成静态 HTML 产物，随时可以免配置推送到 Cloudflare Pages 享受全球分发。
-
-## 2026-02-25 (补充)
-- **解答数据同步问题**:
-  - 用户反馈电脑端记录的闪念在手机端不可见。
-  - 向用户解释了当前应用属于**纯前端单机版**架构，数据使用 `idb-keyval` 完全存储在当前设备的浏览器本地 (IndexedDB) 中。
-  - 提出下一步如需实现跨端同步，需要引入用户认证(Authentication)与云端数据库(如 D1 / Supabase)。
-
-- **跨端架构重构与云端能力接入**:
-  - 用户确认采用 **全套 Cloudflare 边缘计算架构** 来实现数据同步。
-  - 移除了 Next.js 的静态导出限制，引入了 `@cloudflare/next-on-pages` 以支持 Edge API 路由。
-  - 设计并实施了基于 Cloudflare D1 (SQLite) 的云端数据库，通过 `drizzle-orm` 开发 Schema 管理。
-  - 加入了简单的 Auth 身份验证机制，通过设置 Cookie 实现了基于用户的隐式注册与登录流程，保证了不同设备账号数据隔离。
-  - 重构了前端 `useIdeasStore` (Zustand)，现在它既会把数据缓存在 IndexedDB 实现秒开，同时也会尝试与 `/api/ideas` 同步更新云数据库（增加了一个 Cloud 状态小图标）。
-
-- **安全防御与管理员权限系统**:
-  - 添加了 **白名单注册机制 (Allowlist Registration)**。公网下默认拒绝新用户凭空建立账号，仅有管理员钦定邮箱 （`meshnet@163.com`）才能触发系统数据库的新账号注册创建。其他人尝试登录会提示“私有部署拒绝注册”。
-  - 为了彻底掌控本系统，开发了专门的 **上帝视角管理员控制台 (`/admin`)**。它结合了专门的 `GET /api/admin` 路由，仅验证为管理员后，方可忽略数据隔离查看 D1 数据库内全局完整的用户、内容、多媒体与发送时间元数据。
-
-## 2026-02-25 ~ 2026-02-26 (部署之旅)
-- **Git 仓库初始化与 GitHub 推送**:
-  - 为项目初始化了 Git 仓库并推送至 GitHub (`meshnet-sh/magic-ball`)。
-  - 修复了 `master` vs `main` 分支名不一致导致的 `git push` 失败。
-
-- **Cloudflare Pages 部署 — 挫折与排障**:
-  - 首次尝试通过 GitHub 连接 Cloudflare Pages 进行部署。
-  - 失败1: `npm ci` 严格的对等依赖检查拒绝了 Next.js 16.x 与 `@cloudflare/next-on-pages` 的版本冲突。尝试了 `.npmrc` (legacy-peer-deps) 和 `package.json` overrides 均被 `npm ci` 忽略。
-  - 最终解决: 将 Next.js 从 `16.1.6` 降级至 `15.5.2` (next-on-pages 支持的最高版本)。
-  - 失败2: 部署成功但线上页面全白。排查发现远程 D1 数据库未初始化表结构，通过 `wrangler d1 execute --remote` 注入了 SQL Schema。
-  - 失败3: 修复表结构后仍然 500 错误。排查发现 `bcryptjs` (Node.js 原生库) 在 Cloudflare Edge Runtime 中直接导致 Worker 初始化崩溃。用 WebCrypto API (`crypto.subtle.digest SHA-256`) 徒手重写了密码哈希。
-  - 失败4: 所有 API 路由均返回 `Internal Server Error`。创建了零依赖 `/api/ping` 测试端点仍然崩溃，确认是 `@cloudflare/next-on-pages` 适配器与 Next.js 15 的根本性不兼容。
-
-- **架构迁移 — 从 next-on-pages 到 @opennextjs/cloudflare**:
-  - 彻底弃用了旧的 `@cloudflare/next-on-pages` 适配器。
-  - 安装并迁移到 Cloudflare 官方最新推荐的 `@opennextjs/cloudflare` 适配器。
-  - 核心变更:
-    - `wrangler.toml` 重写为 Workers 格式 (main=`.open-next/worker.js`, assets=`.open-next/assets`)
-    - 所有 API 路由移除 `export const runtime = 'edge'`
-    - `getRequestContext()` 全部替换为 `getCloudflareContext()` (来自 `@opennextjs/cloudflare`)
-    - 新增 `open-next.config.ts`, `.dev.vars`, `public/_headers`
-    - `next.config.ts` 加入 `initOpenNextCloudflareForDev()`
-  - 本地 `npx opennextjs-cloudflare build` 编译通过，Worker 打包成功。
-  - 通过 Cloudflare Dashboard 的 Workers Git 连接完成最终部署。
-
-- **部署结果**: 电脑端和手机端(需VPN)均可正常访问。闪念笔记登录、云端同步、管理员面板全部功能正常运行。
-
-## 2026-02-26 (第二插件开发)
-- **投票 & 意见收集器插件 (Vote & Opinion Collector)**:
-  - 替换了侧边栏的"计算器"占位入口，开发了完整的投票/意见收集工具。
-  - 数据库新增 3 张表: `polls`(投票主表)、`poll_options`(选项表)、`poll_responses`(响应表)。通过 `wrangler d1 execute --remote` 向线上数据库注入了 Schema。
-  - 后端 API 路线:
-    - `/api/polls` (GET/POST/DELETE/PATCH) — 需登录的投票 CRUD 管理
-    - `/api/polls/[id]` (GET/POST) — 公开投票端点，支持访问码验证与浏览器指纹防刷
-    - `/api/polls/[id]/results` (GET) — 仅投票创建者可查看的统计结果
-  - 前端页面:
-    - `/tools/polls` — 管理员投票管理页面（创建表单支持单选/多选/文本征集三种模式，附可选访问码、进度条结果统计、复制分享链接、开关/删除投票）
-    - `/vote/[id]` — 公开投票页面（访问码门禁 → 投票表单 → 感谢页面，全程匿名无需登录）
-  - 侧边栏图标改为 `Vote`（投票箱贴纸图标），指向 `/tools/polls`。
-
-- **UI 精细化与设置页面重构**:
-  - 修复了登录页面的"闪念同步"特定文字，改为通用的"登录 Magic Ball"，登录后跳转到仪表盘而非闪念笔记。
-  - 使用 Next.js Route Groups 架构重构了路由体系: `/vote/[id]` 公开投票页面不再显示侧边栏和应用外壳。
-  - 仪表盘计算器卡片替换为投票收集卡片，含正确链接和描述。
-  - 侧边栏移除了独立"后台管理"入口，将管理功能合并到"设置"页面。
-  - 全新的 **设置页面 (`/settings`)** 包含两个 Tab:
-    - **AI 能力配置**: Gemini API Key 输入框（支持明文/密文切换）、模型选择器（2.0 Flash/Pro、1.5 Flash/Pro 四选一）、一键保存到云端。
-    - **后台管理**: 数据总览（用户数/闪念数/投票数统计卡片），以及可折叠展开的三大板块（闪念笔记、投票活动、注册用户），覆盖全部插件数据。
-  - 数据库新增 `user_settings` 表用于存储用户级配置（API Key、模型偏好等）。API 路由 `/api/settings` 支持 GET/POST 的 upsert 逻辑。
-
-- **AI 指令中心 (AI Command Center)**:
-  - Gemini 模型选择器改为 3 个动态别名: `gemini-pro-latest`(最前沿)、`gemini-flash-latest`(主力)、`gemini-flash-lite-latest`(极速)，始终自动跟随 Google 最新版本。
-  - 欢迎页面新增 **AI 指令中心** 组件，支持文字和语音两种输入方式:
-    - 文字输入: 直接在输入框中输入指令，回车发送
-    - 语音输入: 使用 Web Speech API 进行中文语音识别，识别完成后自动发送
-  - 后端新增 `/api/ai/command` 路由:
-    - 读取用户在设置中配置的 Gemini API Key 和模型偏好
-    - 使用包含全部插件上下文的 System Prompt 调用 Gemini API
-    - 返回结构化 JSON 命令（create_idea / create_poll / navigate / chat）
-  - 前端自动执行 AI 返回的命令:
-    - `create_idea`: 直接调用 `/api/ideas` 创建闪念笔记
-    - `create_poll`: 直接调用 `/api/polls` 创建投票
-    - `navigate`: 自动跳转到目标页面
-    - `chat`: 显示 AI 的对话回复
-
-- **Bug Fix**: 闪念笔记页面客户端崩溃
-  - 原因: API 返回的 `tags` 字段类型不一致 — 部分记录为 JSON 字符串 `"[]"`，部分为实际数组 `[]`，前端直接调用 `.map()` 导致崩溃。
-  - 修复: 在 `ideas-store.ts` 的 `sync()` 函数中增加了 tags 类型归一化逻辑，统一解析为 `string[]`。
-
-- **AI 指令中心升级为多轮对话模式**:
-  - 后端 `/api/ai/command` 改为接收 `messages[]` 数组，发送完整对话历史给 Gemini API，支持上下文连续对话。
-  - System Prompt 大幅增强: 为每个插件提供了严格的 JSON 格式规范和具体示例，包含 create_idea、create_poll(三种类型)、navigate、chat 四种命令。
-  - 前端仪表盘 AI 指令中心改为聊天气泡式 UI，支持多轮对话、补充说明和上下文追问。
-  - **自动重试机制**: 命令执行失败时，自动将错误信息反馈给 AI 并请求调整命令重试，最多 5 次。
-  - 新增清空对话按钮。
-
-- **语音输入修复 (弃用 Web Speech API → MediaRecorder + Gemini)**:
-  - 原方案使用 Chrome 的 Web Speech API，但其依赖 Google 服务器（国内不可达），导致语音输入始终失败。
-  - 新方案: 使用浏览器 MediaRecorder API 录制 webm 音频 → base64 编码 → 发送到 /api/ai/command → 作为 Gemini inlineData 音频部分发送，由 Gemini 直接理解语音内容并返回命令。
-  - 整条链路通过 Cloudflare Workers 代理，绕过了国内 Google 服务不可达的问题。
-  - 增加了 **静默检测自动停止**: 使用 Web Audio API 的 AnalyserNode 每 200ms 检测音量，连续 2 秒无声后自动停止录音并发送给 Gemini。
-
-- **AI 多操作支持 & 语音转写显示**:
-  - System Prompt 改为返回 `{ transcript, actions[] }` 格式，支持一次说多个任务时全部拆分执行。
-  - 语音输入时，用户气泡显示 `🎤 "识别到的文字"` 以呈现上下文。
-  - 前端按顺序执行 actions 数组中的所有操作，某步失败时触发自动重试。
-
-- **日程调度插件 (Scheduler)**:
-  - 新增 `scheduled_tasks` 表 (D1 migration 0004)，支持定时触发时间、重复规则、操作类型和参数。
-  - CRUD API `/api/scheduler`: 创建/查询/更新/删除定时任务。
-  - 触发 API `/api/scheduler/trigger`: 检查到期任务并自动执行（创建笔记、触发 AI、提醒），支持重复任务自动计算下次触发时间。
-  - AI 集成: 新增 `schedule_task`(创建定时任务)、`list_tasks`(查看任务)、`cancel_task`(取消任务) 三个 AI 指令。System Prompt 注入实时时间戳，AI 可理解自然语言时间。
-  - 前端 `/tools/scheduler` 页面: 任务列表、状态过滤、手动创建表单、暂停/恢复/删除操作。
-  - 仪表盘: 新增日程调度工具卡片，60 秒客户端轮询自动检查到期任务并显示通知。
-  - 侧边栏新增日程调度导航入口。
+本文档记录了 Magic Ball 项目的关键开发里程碑和功能演进。
 
 ---
-## 开发知识备忘
 
-### D1 数据库 Migration（迁移）
-- 每次新增需要存储数据的功能时，需要执行一次 migration，本质就是"为新功能做数据库初始化"。
-- 代码中的 `schema.ts` 只是告诉应用代码数据结构长什么样，数据库本身并不会自动同步，需要手动执行 SQL 来创建/修改表。
-- 项目中的 migration 文件 (drizzle/0000~0004.sql) 与功能对应:
-  - 0000 → 用户表 (登录)
-  - 0002 → 投票相关表 (投票功能)
-  - 0003 → 用户设置表 (AI 配置)
-  - 0004 → 定时任务表 (日程调度)
+### 2026-03-01: 会话管理、全局配置与 UI 品牌化
+- **全局 LLM 配置**: 强制所有用户使用管理员（meshnet@163.com）配置的 Gemini API Key 和模型，移除了普通用户的 LLM 设置项，确保后端调用的统一性。
+- **全新极简对话 UI**: 实现了全屏极简聊天界面，引入了侧边栏导航，优化了移动端适配，并隐藏了工具卡片描述以提升触控体验。
+- **会话历史与管理**: 
+  - 修复了会话历史列表由于 SQL 映射不准导致为空的 Bug，实现了更稳健的会话聚合查询（基于内存过滤最新消息）。
+  - 增加了“新建对话”功能，确保当前对话状态能无缝存入历史并开启新会话。
+  - 增加了会话删除功能，支持在历史列表中通过垃圾桶图标清理旧对话。
+- **系统品牌统一**: 将所有界面中的 'Dashboard' (仪表盘) 统一重命名为 'Magic Ball'，强化了品牌一致性。
+- **自动化集成增强**: 
+  - 完善了 n8n Webhook 的 inbound 逻辑，确保来自 n8n 的消息能正确关联用户并持久化。
+  - 增强了 Action 执行引擎（executeAction.ts）的鲁棒性，增加了用户存在性校验。
+  - 实现了定时任务执行报告实时同步到网页端聊天记录的功能。
 
-### Wrangler 命令行工具
-- Wrangler 是 Cloudflare 官方 CLI 工具，用于在本地远程管理 Cloudflare 服务。
-- 已作为 npm 依赖安装在项目中，配置文件为 `wrangler.toml`。
-- 常用命令:
-  - `npx wrangler d1 execute <数据库名> --remote --command "SQL语句"` — 远程执行 D1 SQL
-  - `npx wrangler d1 list` — 查看所有 D1 数据库
-  - `npx wrangler deploy` — 部署 Worker
-  - `npx wrangler dev` — 本地开发调试
-- 注意: PowerShell 下需确保 Node.js 在 PATH 中，可用 `$env:PATH += ";C:\Program Files\nodejs"` 临时添加。
+### 2026-02-28: n8n 自动化深度集成与 API 开放
+- **外接工作流 (Outbound)**: 在 AI 指令集中加入了 `trigger_external_workflow` 能力，支持 AI 助手直接触发 n8n 等外部自动化平台。
+- **入站 Webhook (Inbound)**: 建立了 `/api/webhooks/n8n/[userId]` 路由，支持外部系统向指定用户发送系统通知或 AI 回复，并支持消息持久化。
+- **邮件发送标准**: 强制要求 AI 在发送邮件任务时采用标准的 JSON 结构（to, subject, body），以便 n8n 节点精准解析。
+- **多租户策略**: 调整了 n8n 集成策略，支持用户动态配置自己的 n8n Webhook URL 和 Token。
+- **导航同步**: 同步了侧边栏和主页网格的菜单项（闪念笔记、投票收集、日程调度、外部 API、系统设置、使用帮助），确保体验的一致性。
 
-- **飞书机器人接入 AI 指令中心**:
-  - 新增 `src/lib/feishu.ts`: 飞书 API 工具类 (获取 tenant_access_token、回复消息、发送消息)。
-  - 新增 `/api/feishu/webhook`: 飞书事件回调端点，处理 URL 验证(challenge)、接收消息事件(im.message.receive_v1)。
-  - 消息处理流程: 接收文本 → 查找 Gemini API Key → 调用 AI → 执行命令(创建笔记/日程等) → 回复飞书。
-  - 添加 event_id 去重机制，防止飞书重试导致重复回复。
-  - 飞书配置: App ID cli_a92bd1e2eab81bc9, 需在飞书开放平台创建企业自建应用并发布。
+---
 
-- **Cloudflare Cron Worker (后台定时调度)**:
-  - 新增 `/api/scheduler/cron`: 无 cookie 认证的触发端点，用 secret key 保护，处理所有用户的到期任务。
-  - 飞书 webhook 自动保存发信人 open_id 到 user_settings，供 cron 端点主动推送飞书通知。
-  - 新增 `cron-worker/` 独立 Cloudflare Worker: 每分钟通过 cron trigger 调用 /api/scheduler/cron。
-  - 部署命令: `cd cron-worker && npx wrangler deploy`，部署后在 https://magic-ball-cron.meshnet.workers.dev 可手动触发测试。
-  - 任务执行结果通过飞书主动推送给用户，不依赖用户打开网页。
-
-### Cloudflare Cron Worker 原理
-- Cron Worker 是 Cloudflare 的定时任务功能，类似"云端闹钟"。
-- 核心机制: Cloudflare 按照 cron 表达式(如 `* * * * *` = 每分钟)自动调用 Worker 的 `scheduled()` 函数。
-- 我们的 Cron Worker 非常轻量(cron-worker/index.js 仅几行)，它的唯一工作是调用主应用的 `/api/scheduler/cron` 接口。
-- 真正的业务逻辑(检查到期任务、执行操作、飞书推送)都在主应用代码里，通过 GitHub 推送自动部署。
-- 架构: `Cloudflare 调度器 → Cron Worker (index.js) → 主应用 /api/scheduler/cron → 执行任务 → 飞书推送`
-
-- **何时需要重新部署 Cron Worker**:
-  - 改变触发频率 (修改 `cron-worker/wrangler.toml` 里的 crons)
-  - 修改 Cron Worker 自身代码 (`cron-worker/index.js`)
-  - 修改 CRON_SECRET 密钥
-  - 部署命令: `cd cron-worker && npx wrangler deploy`
-  - 普通业务逻辑修改(增减插件功能等)不需要重新部署，会随主应用 GitHub Push 自动生效。
-
-- **Cron 表达式速查**:
-  - `* * * * *` — 每分钟
-  - `*/5 * * * *` — 每 5 分钟
-  - `0 * * * *` — 每小时整点
-  - `0 9 * * *` — 每天早上 9 点
-  - 格式: 分 时 日 月 周
-
-- **分钟级重复任务**:
-  - 新增 `minutes:X` 和 `hours:X` 重复规则，支持"每5分钟提醒我"等场景。
-  - 更新了 computeNextTrigger (trigger + cron 两处)，AI 系统提示词 (web + 飞书)，以及调度页面 UI (下拉选项 + 显示标签)。
-  - 配合 Cron Worker 每分钟检查，实现分钟级精度的自动任务执行。
-
-- **统一插件编排 + AI Agent + 记忆系统**:
-  - `executeAction.ts`: 新增了统一执行引擎，所有插件操作（包括创建笔记、发提醒、调度任务等）统一由此处理。
-  - **AI Agent 模式**: 创建 `ai_agent` 动作，结合调度器支持到期自动唤醒AI进行自主决策（最多递归3层），可组成复杂工作流。
-  - **记忆系统 (`ai_memories`)**: AI 会在用户对话后、Agent执行后自动将核心信息录入数据库；每次AI被唤醒时注入最近相关记忆，提供长期上下文记忆支持。
-  - Web AI 命令和飞书 Webhook 交互引擎均已重构接入上述新架构。
-
-## 2026-02-27 (Bug 修复与细化)
-- **Bug Fix**: 投票无法删除
-  - 修复: 在 `src/app/api/polls/route.ts` 中将所有的 `.get()` 调用替换为安全的数组索引 `[0]` 访问方式，确保稳定读取记录并顺利执行删除操作。
-
-- **AI 定期总结范围优化**:
-  - 用户反馈 AI 被定时任务唤醒后，会总结外部世界的客观大事件，而不是关注 Magic Ball 自身系统内的闪念笔记。
-  - 优化: 在 `src/lib/executeAction.ts` 中重写了 `ai_agent` 的系统提示词，严厉禁止其使用自带模型知识编造外部新闻，并强化当前时间戳的影响力，强制其仅基于提供的局部小世界上下文回答。
-
-- **调度器确认机制与飞书推送闭环**:
-  - 用户反馈AI在创建调度任务时经常自作主张，且通过网页端触发的调度任务没有推送到飞书。
-  - 修复1(二次确认): 更新了 Web AI 命令和 飞书 webhook 中 `ai_agent` 的提示词，强制要求它在执行 `schedule_task` 之前必须先使用 `chat` 向用户确认具体的触发时间和细节。
-  - 修复2(网页端触发推送): 重构了 `src/app/api/scheduler/trigger/route.ts` 客户端轮询执行逻辑，统一将其底层调用替换为 `executeAction`，并在执行完毕后像 Cron worker 一样把结果汇总推送到用户绑定的 Feishu Open ID。
-
-- **Web端消息记录持久化与飞书同步**:
-  - 用户反馈 Web 端的消息弹框过快消失且无法回顾，并且希望记录能同步给飞书。
-  - 数据库演进: 增加了 `messages` 表用于持久化所有的系统/AI消息和用户输入。
-  - 接口扩展: 新增了 `src/app/api/messages/route.ts` 用于前后端同步，且如果在后端保存消息时检测到了AI/System发出的内容，会自动向用户的 Feishu Open ID 发送无感知的同步推送。
-  - UI改进: Web端的聊天记录会在页面加载时自动从 `/api/messages` 拉取从而实现历史驻留。
-
-- **飞书机器人重复回复 Bug 修复**:
-  - 根因分析: Cloudflare Worker 等 Serverless 环境在处理 webhook 时，如果AI请求耗时超过3秒，飞书会自动重试触发机制，导致同一个事件被多次处理并响应。之前的内存 `Set` 方案由于跨实例隔离，起不到去重作用。
-  - 数据库演进: 新增了 `feishu_events` 表并通过 event_id 做主键。
-  - 修复方案: 在 `src/app/api/feishu/webhook/route.ts` 第一步直接利用 sqlite 的 `UNIQUE constraint failed` 报错异常来进行原子的并发安全去重。
-
-- **创建定时任务传参 Error 修复**:
-  - 问题现象: 在 Web AI 指令中心确认创建提醒后，界面抛出数据库插入错误，提示 `action_type` 字段为 null。
-  - 根因分析: 前端的解析器错误地使用了老旧的 `cmd.taskAction`，而新的 AI Agent 规范返回的潜套对象是 `scheduledAction` 导致 `actionType` 没有正确提取。同时发现飞书 webhook 调用到 `executeAction.ts` 时也漏掉了 `schedule_task` 的分支支持。
-  - 修复方案: 更新了 `page.tsx` 中对 `scheduledAction` 的正确拆解映射；并在 `executeAction.ts` 补充了 `schedule_task` 存入数据库的逻辑。
-
-- **多项核心体验与 Bug 修复升级 (2026-02-28)**:
-  - 时区统一问题: 以前端网页 `new Date()` 依赖环境系统且 AI API 在无时区说明情况下默认使用 UTC(零时区) 为根因，分别给 Web UI (`zh-CN` + `Asia/Shanghai`) 与 `route.ts` 提示词 (注入 `UTC+8`) 加上强制北京时间的声明，确保日期显示与推断全域拉齐。
-  - 投票删除无反应Bug: 投票页面的删除按钮原先连续分步发出了三条单独的 `delete` 语句进行级联删除（responses -> options -> polls）。在 D1 环境或网络抖动时极易产生悬挂的 Promise 进而卡死。将其重构修改为原子的 `db.batch()` 批量执行，并增加了弹框捕获抛出底层的 Sqlite Error。
-  - 定时调度操作减负: 降低了 AI Agent 的安全防御阈值，通过修改 `command/route.ts` 规则告诉 AI “只要意图明确就直接排期执行并返回单行确认，不需要再抛问题问用户是否确认”。
-  - 飞书支持投票发起: 为核心的机器大脑 `executeAction.ts` 追加实现了 `create_poll` 解析能力。现在用户只需要在飞书发一句“周五去哪玩”，不仅数据库会自动创建投票列，还会通过机器人直接回传一个可以点击分享在群里的投票短连接。
-
-- **安全性、防御性编程与数据防患 (2026-02-28)**:
-  - 核心架构: 新增了 `src/lib/auth.ts` 集中处理密码学逻辑。
-  - 越权登录与伪造会话封堵: 移除了原来基于单纯随机 UUID 且明文存放在 Cookie 中的脆弱凭证机制。接入了基于 Server 独立密钥的 WebCrypto HMAC `signUserId` 和 `verifyAndExtractUserId`。现在所有的 /api 下包含用户鉴权的 12 个路由都被重构为仅信任校验过数字签名的 Cookie。
-  - 防御越权投票与数据脏乱 (BAC): `api/polls/[id]/route.ts` 原本接收任何来源的选项 ID 并无脑插入，导致潜在幽灵选项堆积。现在会在入库前去数据库二次拉取比对当前 ID 所在的母问题合法选项，如果对不上或者故意传空数组，直接拒绝服务。
-  - 投票防水军脚本 (Rate Limit) 体系: 由于之前投票防刷仅依赖前端指纹容易被伪造，现升级为将 Cloudflare Worker 层的 `cf-connecting-ip` 加上原生态前端 Fingerprint，并加盐进行 SHA256 复合哈希。这个 `secureFingerprint` 大大提升了机刷的作恶成本。
-  - 防 500 断路器 (Input Validation): 在 `ideas` 与 `scheduler` 创建接口前置了基于 typeof 与必填字段验证的 400 防御拦截，防止脏数据直接导致底层 SQLite 约束崩溃卡死。
-  - 统一删除确认流: 对“闪念笔记”与“调度器”中的删除交互进行了统一切换，从可能被浏览器悄悄拦截的 `window.confirm` 原生弹框，统一升级到了原地的 React State “确认删除？是/否” 内联渲染体验，并纠正了飞书 webhook 里的假域名错别字。
-
-- **多模态能力升级 (2026-02-28 补充)**:
-  - 飞书单信源富媒体 (语音与图片): 在 `lib/feishu.ts` 中新增了底层的 `downloadResource` 工具以抓取飞书用户的私聊富媒体附件。同时在 `api/feishu/webhook/route.ts` 放开了对 `image` 及 `audio` 消息类型的拦截，将其二进制 Buffer 转作 base64 `inlineData` 喂给后台底层的 Gemini 2.0 原生多模态解析内核。并在传给大模型前智能推算并强制兼容 ogg/opus 语音容器。
-  - 飞书组合型富文本 (`post`) 支持: 由于在移动端发送多选内容的组合结构，或者电脑端发送图文混排，飞书后台均解析为 `post` 收件类型。现已全面支持多元素遍历和并行资源拉取，提取富文本树中的每一段 `text`、`img` 和 `media` (录音) 并打包合并成包含图片、录音及文字的多模态合集再扔给 Gemini。真正实现了随心所欲无缝提意图。
-
-### 2026-02-28: Multi-Tenant Architecture & Feishu Open ID Binding
-- User Registration: Removed the `meshnet@163.com` hardcoded lock in `/api/auth/route.ts` to allow open registration for all visitors, officially moving from a single-user private instance to a multi-tenant platform.
-- Admin Roles & Settings: Defined `meshnet@163.com` as the sole platform Admin. In `/api/settings/route.ts` and the frontend `SettingsPage`, standard users are BLOCKED from viewing or modifying global system variables (like `gemini_api_key`). They can only edit personal settings (like UI timezone, Model Preference, or Feishu Open ID).
-- Multi-User Feishu Bot Routing: Rewrote the Feishu Webhook (`/api/feishu/webhook/route.ts`). Instead of blindly assigning messages to the first user with an API key, it now extracts the sender's `open_id`. It queries the `user_settings` table to dynamically find the correct `userId`. If a user is unregistered or unbound, the bot now replies dynamically with their `open_id` and instructions to bind it via the Web UI.
-- API Key Proxy (Billing): Standard users and background crons (`executeAction.ts`) no longer need their own `gemini_api_key`. The backend now automatically borrows the Admin's (`meshnet@163.com`) API key to process their AI inferences, creating a centralized billing/usage pool while keeping personal data (ideas/polls/memories) strictly sandboxed per user workspace.
-
-- Logout & User Switching: Added a DELETE /api/auth endpoint to destroy the uth_session cookie and a 'LogOut' button to the Sidebar component, allowing the admin to sign out and test the new open registration flow as a standard user.
-
-- Authentication UI Overhaul (Login/Register/Reset): Removed the implicit 'magic' login system. Registration now requires an explicit toggle and validation against the mandatory 'meshnet' invitation code. Login errors explicitly differentiate between wrong password and unregistered email.
-- Password Reset Architecture: Created a secure backend flow for password resets. Admins can click 'Request Password Reset' next to any user in the dashboard, setting a database flag. Upon their next login attempt, the user is intercepted and forced to enter a new password to overwrite their hash and clear the flag.
-
-- Mobile UI Optimization: Added extra bottom padding to the main layout to prevent mobile browser navigation bar overlap. Simplified dashboard tool cards by hiding descriptions on small screens and significantly enlarged the AI Command Center and Fast Idea Logger interactive buttons (especially the microphone recording button) for better touch usability.
-
-- Dashboard Expansion: Added two new modules to the main Dashboard screen. 1) 'External API Interfaces' (�ⲿ���ܽӿ�) as a placeholder for future webhooks and API gateways. 2) 'Usage Guide' (ʹ�ð���) which links to a detailed, fully-styled Chinese documentation page explaining the system architecture, AI tools, Voice Feishu integration, Polls, and Cron job limits.
-
-- Navigation Synergy: Synchronized the main Dashboard grid and the lateral Sidebar to feature the exact same six menu items in the same logical order (Dashboard, Ideas, Polls, Scheduler, External APIs, Settings, Help). This resolves navigational discrepancies and establishes a coordinated user experience across both interfaces.
-
-### 2026-02-28: External Interface Center & n8n Automation Integration
-- 体系化 Settings 扩展: 在 api/settings/route.ts 与 settings/page.tsx 中新增了管理员专属的 integrations 配置项，采用可扩展的 JSON 字段，第一期支持配置 n8n 自动化平台的 Webhook URL 和安全鉴权 Token。
-- 外部接口大盘 (Dashboard): 将之前 tools/api 的占位符升级为正式的控制面板，可以动态读取系统设置并在 Dashboard 上向管理员展示 n8n 的连接状态与 Webhook 信息。
-- Outbound (Magic-Ball -> n8n) 触发器支持:
-  - 创建了 lib/n8n.ts 专门处理向 n8n Webhook 节点推送 HTTP POST 数据。
-  - AI Agent 能力扩展: 修改了底层的调度引擎 executeAction.ts 及其系统 Prompt，赋予 AI 全新动作指令 trigger_external_workflow。现在无论是定时任务还是手动聊天，只要指令对齐，AI 即可根据上下文主动决断调用 n8n 触发扩展应用。
-- Inbound (n8n -> Magic-Ball) Webhook 支持:
-  - 新增开放回调网关 api/webhooks/n8n/route.ts。当 n8n 侧执行完耗时自动化任务后，可通过该接口携数据回写。
-  - 指令内核注入: 传入的合法数据可以直接在后台触发完整的 executeAction。
-
-- **AI Agent 调度能力强化 (Bugfix)**:
-  - 修复了主对话窗口 (Chat UI) 下 AI 不知道自己拥有调用外部抽象工具 (trigger_external_workflow) 的能力缺陷。
-  - 在系统的聊天指令解析器核心 Prompt 内，为外部自动化操作写入了强制的严格 Payload JSON 骨架结构。
-
-  - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 /api/external-workflow 路由供 Web 端直接调用，将 AI 返回的 trigger_external_workflow 行动桥接到后端的 n8n 集成系统。
-
-### 2026-02-28: External Interface Center & n8n Automation Integration
-- 体系设置 Settings 扩展: 在 `api/settings/route.ts` 与 `settings/page.tsx` 中新增了管理员专属的 integrations 配置项，采用可扩展的 JSON 字段，第一期支持配置 n8n 自动化平台的 Webhook URL 和安全鉴权 Token。
-- 外部接口大盘 (Dashboard): 将之前的 tools/api 的占位符升级为正式的控制面板，可以动态读取系统设置并在 Dashboard 上向管理员展示 n8n 的连接状态与 Webhook 信息。
-- Outbound (Magic-Ball -> n8n) 触发器支持:
-  - 创建了 `lib/n8n.ts` 专门处理向 n8n Webhook 节点推送 HTTP POST 数据。
-  - AI Agent 能力扩展: 修改了底层的调度引擎 `executeAction.ts` 及其系统 Prompt，赋予 AI 全新动作指令 `trigger_external_workflow`。现在无论是定时任务还是手动聊天，只要指令对齐，AI 即可根据上下文主动决断调用 n8n 触发扩展应用。
-- Inbound (n8n -> Magic-Ball) Webhook 支持:
-  - 新增开放回调网关 `api/webhooks/n8n/route.ts`。当 n8n 侧执行完耗时自动化任务后，可通过该接口携数据回写。
-  - 指令内核注入: 传入的合法数据可以直接在后台触发完整的 `executeAction`。
-
-- **AI Agent 调度能力强化 (Bugfix)**:
-  - 修复了主对话窗口 (Chat UI) 中 AI 不知道自己拥有调用外部抽象工具 (trigger_external_workflow) 的能力缺陷。
-  - 在系统的聊天指令解析器核心 Prompt 内，为外部自动化操作写入了强制的严格 Payload JSON 骨架结构。
-  - 修复了主对话窗口响应外部挂载流程时缺少处理端点的问题：新建了 `/api/external-workflow` 路由供 Web 端直接调用，将 AI 返回的 `trigger_external_workflow` 行动桥接到后端的 n8n 集成系统。
-
-### 2026-02-28: n8n 自动化扩展架构咨询
-- 扩展性探讨：确认了 n8n 工作流的“一对多”能力。单个 Webhook 节点可以通过：
-  - **分支 (Branching)**: 直接连接多个后续节点实现并行触发。
-  - **逻辑判断 (If/Switch)**: 根据传入数据的 Payload 智能路由到不同的处理路径。
-  - **模块化解耦**: 对于复杂功能，建议使用 `Execute Workflow` 节点调用子流程，保持主 Webhook 入口简洁且易于维护。
-
-### 2026-02-28: n8n 邮件发送 Payload 规范
-- 接口对齐：贴出了 AI Agent 触发邮件发送的严格 JSON 结构。
-- 自动化对接：明确了 payload 字段（to, subject, body）与 n8n 邮件节点的映射关系。
-
-### 2026-02-28: AI 指令中心持久化清空
-- 逻辑修复：修复了“清空对话”仅清除前端缓存而未同步数据库的 Bug。
-- 后端扩展：在 `/api/messages` 中新增了 `DELETE` 接口以支持按用户清空历史。
-- 前端同步：将 `AICommandCenter` 的清空动作改为异步 API 调用，确保刷新后对话不再复现。
-
-### 2026-02-28: n8n 回调消息持久化支持
-- 体验升级：修改了 `api/webhooks/n8n/[userId]/route.ts` 的行为。现在当外部工作流通过 HTTP POST 传回 `{"action": "chat"}` 指令时，系统会将该消息显式存入用户的 `messages` 数据表，身份记为 `system`。在此修复前，外部回调的文本只会在 HTTP 响应中被丢弃，现在用户只需刷新 Dashboard 即可看到自动化流程发回的聊天通知。
-
-
-
-### 2026-02-28: n8n Webhook 500 错误排查 (Switch 节点)
-- 错误诊断：分析了 "No item to return was found" 错误，确认是因为 n8n Webhook 节点的响应模式设为 "When Last Node Finishes"，但 Switch 逻辑导致执行路径未返回有效数据。
-- 修复建议：建议用户将 Webhook 响应模式改为 "On Received"，或在每个分支末尾添加 "Respond to Webhook" 节点。
-2 0 2 6 - 0 2 - 2 8 :   [ �g�g͑�gNSO��OS]   \Qu��z�TޘfN�zT��r�z�v  A I   �c:y͋�S Y S T E M _ P R O M P T 	��~ N�b�y0R  s r c / l i b / e x e c u t e A c t i o n . t s   �v  g e t S y s t e m P r o m p t ( )   -N��[�s�S�z  A I   ���R�v�[hQTek��OY�NޘfN�z:1Y  n 8 n   ���N��S���R�v�0T�e��~ N�NhQ@\ Rd��N�NSO���(W 
- �ez��^�]wQ-Ne�P��N:1Y�v0nx�� Rd��0�N!knx���s���v^\��_{��(W�y�R�z�xdO\N�v Rd�	c���te:N8^{�>f:y�㉳Q�N�e �h  h o v e r   �[�v�N�N���x0 
- 
- # # #   2 0 2 6 - 0 3 - 0 1 :   �OY  n 8 n   W e b h o o k   T�S�T�^�ea�w�
- -   T�z�OY��O9e  s a v e S y s t e m M e s s a g e �/ec\Y�ꁨRSAm( �Y  n 8 n ) ԏ�V�vJ�)Y�mo`�[�e�c�0R�~�[�vޘfN&��S0
- -   MR�z�X:_�(W  W e b   U I   c�N-N�_�X�R�N0Kb�RTek0	c����e �7R�eu�b�sS�S�b�ST�S�e�mo`0 
- 2 0 2 6 - 0 3 - 0 1 :   �yd��Nnf�(u7b�v�r�zL L M   A P I   K e y M�n	�y��:_6RhQ@\�1u�W e b �z0ޘfN�z0A g e n t �z	�O(u�{tXT( m e s h n e t @ 1 6 3 . c o m ) �vK e y �TM o d e l ��[�shQ@\�{�R`l�R��0u�b���n-N��υ�Nnf�(u7b�vA I !j�W	��by�0 
- 2 0 2 6 - 0 3 - 0 1 :   Qu�;NLub�͑�g�\aSGr�Nh��vu�b�GS�~:N�g�{�vhQ@\hQO\  A I   J�)Y�[݋Lub���O��hƖbT*NN�R�^(ueQ�S�v^�X�R  M a r k d o w n   2n�g/ec0 
- 2026-03-01: 修复全屏聊天界面的重复侧边栏嵌套问题及历史对话气泡的背景显示异常。
-2026-03-01: 优化消息互动中心：后台定时任务的执行结果和提醒现在会自动保存至系统的历史记录(Messages 表)，并实时推送更新至网页端的极简对话流中，同时飞书机器人侧保持系统通知同步。
-2026-03-01: (1) 数据库结构升级增加 session_id 以支持多轮对话隔离；(2) 主控台支持『新对话』按钮清空当前上下文并不丢失历史记录；(3) 重点特性：Web 端对话框实现底层 Server-Sent Events (SSE) 协议重写，支持 AI 结果以打字机模式实时流式输出，极致响应体验。
-2026-03-01: (1) 修复了从其他页面导航回聊天窗口时消息丢失的问题，通过在状态初始化时直接读取 localStorage 保证 session 一致性；(2) 全局更名，将原有的 'Dashboard' 统一变更为 'Magic Ball (水晶球)'，更契合项目定位；(3) 增加了历史会话列表 UI，支持多轮对话上下文切换。
-2026-03-01: (继续) 完善了会话管理逻辑：1. 修复了历史记录列表查询不到数据的问题，现在能准确显示每个会话的最后一条消息；2. 增加了历史会话删除功能，支持清理无用的对话；3. 优化了'新对话'体验，点击新对话会立即封装当前上下文并存入历史，开启全新的 ID。
-2026-03-01: (紧急修复) 修复了会话历史查询由于 SQL 映射不准确导致列表为空的问题，并修正了 page.tsx 中意外结束组件导致的语法错误。同步将侧边栏的'仪表盘'重命名为'Magic Ball'以保持品牌一致。
+*注意：此文件采用 UTF-8 BOM 编码，以确保在 Windows 环境下不出现乱码。*
