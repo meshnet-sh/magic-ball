@@ -17,7 +17,7 @@ export function Header() {
         : pathname.split("/").pop()?.replace("-", " ") || "Magic Ball"
 
     return (
-        <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background/60 backdrop-blur-xl px-4 md:px-6 sticky top-0 z-40">
+        <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b bg-background/60 backdrop-blur-xl px-4 pt-[env(safe-area-inset-top)] md:px-6 sticky top-0 z-40">
             <div className="flex items-center gap-4">
                 {/* Mobile menu trigger */}
                 <Button
@@ -47,7 +47,7 @@ export function Header() {
                 variant="default"
                 size="icon"
                 onClick={() => setSidebarOpen(true)}
-                className="fixed bottom-5 left-4 z-50 md:hidden rounded-full h-12 w-12 shadow-lg"
+                className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-50 md:hidden rounded-full h-12 w-12 shadow-lg"
             >
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open sidebar</span>
