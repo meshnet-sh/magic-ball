@@ -1,12 +1,13 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings } from "lucide-react";
+import { Vote, Zap, Calendar, ArrowRight, Sparkles, Mic, Send, Square, Loader2, RotateCcw, Trash2, Link2, BookOpen, Settings, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -17,6 +18,79 @@ interface ChatMessage {
 }
 
 const MAX_RETRIES = 5
+
+function Sidebar({ isOpen, setIsOpen, setIsAuthenticated }: { isOpen: boolean, setIsOpen: (v: boolean) => void, setIsAuthenticated: (v: boolean | null) => void }) {
+  const tools = [
+    { name: '闪念笔记', icon: Zap, href: '/tools/ideas', desc: '极速随身便签' },
+    { name: '投票收集', icon: Vote, href: '/tools/polls', desc: '匿名投票征集' },
+    { name: '日程调度', icon: Calendar, href: '/tools/scheduler', desc: '定时或重复任务' },
+    { name: '外部接口', icon: Link2, href: '/tools/api', desc: '系统API集成' },
+    { name: '系统设置', icon: Settings, href: '/settings', desc: '密钥与账号管理' },
+    { name: '使用帮助', icon: BookOpen, href: '/help', desc: '指令说明与帮助' },
+  ];
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+      setIsAuthenticated(false);
+    } catch { }
+  };
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden animate-in fade-in"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Sidebar sidebar */}
+      <div className={cn(
+        "fixed md:static inset-y-0 left-0 z-50 w-64 bg-secondary/30 backdrop-blur-xl border-r border-border/50 flex flex-col transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+              <Sparkles size={16} className="text-primary" />
+            </div>
+            <span className="font-bold text-lg tracking-tight">Magic Ball</span>
+          </div>
+          <Button variant="ghost" size="icon" className="md:hidden rounded-full" onClick={() => setIsOpen(false)}>
+            <X size={20} />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          <div className="text-xs font-semibold text-muted-foreground mb-3 px-2 uppercase tracking-wider">
+            工具箱
+          </div>
+          {tools.map((t, i) => (
+            <Link key={i} href={t.href} onClick={() => setIsOpen(false)} className="block outline-none">
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-secondary/50 text-foreground/80 hover:text-foreground transition-all group">
+                <div className="p-1.5 rounded-lg bg-background border border-border/50 group-hover:border-primary/30 group-hover:text-primary transition-colors">
+                  <t.icon size={16} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{t.name}</span>
+                  <span className="text-[10px] text-muted-foreground">{t.desc}</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="p-4 border-t border-border/50">
+          <Button variant="outline" className="w-full justify-center rounded-xl bg-background/50 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all text-sm h-10" onClick={handleLogout}>
+            退出登录
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function AICommandCenter() {
   const [input, setInput] = useState("")
@@ -358,96 +432,138 @@ function AICommandCenter() {
   }
 
   return (
-    <div className="p-4 bg-secondary/30 backdrop-blur-xl border border-border/50 rounded-3xl shadow-xl space-y-3">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 bg-primary/10 rounded-lg">
-          <Sparkles size={16} className="text-primary" />
-        </div>
-        <span className="text-sm font-semibold">AI 指令中心</span>
-        <span className="text-[10px] text-muted-foreground">多轮对话 · 语音/文字</span>
-        <button onClick={() => {
-          setIsProcessing(true)
-          fetch('/api/messages').then(r => r.json()).then(data => {
-            if (data.success && data.data) {
-              setMessages(data.data.map((m: any) => ({
-                role: m.source === 'user' ? 'user' : 'assistant',
-                text: m.content || '',
-                status: 'success'
-              })))
-            }
-          }).finally(() => setIsProcessing(false))
-        }} className="ml-auto text-muted-foreground hover:text-primary p-1 transition-all" title="同步最新消息 (如自动化流返回的结果)">
-          <RotateCcw size={14} className={isProcessing ? "animate-spin text-primary" : ""} />
-        </button>
-        {messages.length > 0 && (
-          <button onClick={clearChat} className="text-muted-foreground hover:text-red-400 p-1 transition-all" title="清空对话">
-            <Trash2 size={14} />
-          </button>
+    <div className="flex flex-col h-full bg-background relative z-10">
+      {/* Messages Area */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scroll-smooth"
+      >
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-60 animate-in fade-in zoom-in duration-700">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <Sparkles size={32} className="text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold mb-2 tracking-tight">有什么我可以帮您？</h2>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              试着说「记一下明天开会」、「帮我发个出游投票」或「每天提醒我喝水」。
+            </p>
+          </div>
+        ) : (
+          messages.map((m, i) => (
+            <div key={i} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", m.role === 'user' ? "justify-end" : "justify-start")}>
+              <div className={cn(
+                "max-w-[85%] md:max-w-[75%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed",
+                m.role === 'user'
+                  ? "bg-primary text-primary-foreground rounded-br-sm shadow-md shadow-primary/10"
+                  : m.status === 'error'
+                    ? "bg-red-500/10 text-red-400 border border-red-500/20 rounded-bl-sm"
+                    : m.status === 'success' && m.command?.action !== 'chat'
+                      ? "bg-secondary/40 text-foreground border border-border/30 rounded-bl-sm"
+                      : "bg-transparent text-foreground"
+              )}>
+                {m.role === 'assistant' && (m.status === 'success' || m.status === 'error') ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-secondary prose-pre:border prose-pre:border-border/50">
+                    <ReactMarkdown>{m.text}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <span className="whitespace-pre-wrap">{m.text}</span>
+                )}
+              </div>
+            </div>
+          ))
         )}
+
+        {isProcessing && (
+          <div className="flex justify-start w-full animate-in fade-in">
+            <div className="flex items-center gap-2 px-4 py-3 rounded-3xl rounded-bl-sm text-muted-foreground bg-transparent">
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+            </div>
+          </div>
+        )}
+        <div className="h-4" /> {/* Bottom spacer */}
       </div>
 
-      {/* Chat history */}
-      {messages.length > 0 && (
-        <div ref={scrollRef} className="max-h-64 overflow-y-auto space-y-2 scrollbar-hide">
-          {messages.map((m, i) => (
-            <div key={i} className={cn("flex", m.role === 'user' ? "justify-end" : "justify-start")}>
-              <div className={cn(
-                "max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap",
-                m.role === 'user'
-                  ? "bg-primary text-primary-foreground rounded-tr-md"
-                  : m.status === 'error'
-                    ? "bg-red-500/10 text-red-300 border border-red-500/20 rounded-tl-md"
-                    : m.status === 'success' && m.command?.action !== 'chat'
-                      ? "bg-green-500/10 text-green-300 border border-green-500/20 rounded-tl-md"
-                      : "bg-secondary/50 text-foreground border border-border/30 rounded-tl-md"
-              )}>
-                {m.text}
-              </div>
-            </div>
-          ))}
-          {isProcessing && (
-            <div className="flex justify-start">
-              <div className="px-3 py-2 rounded-2xl rounded-tl-md bg-secondary/50 border border-border/30">
-                <Loader2 size={14} className="animate-spin text-primary" />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Input Area */}
+      <div className="p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="max-w-4xl mx-auto flex items-end gap-2 relative">
+          <div className="absolute -top-10 left-2 flex items-center gap-2">
+            <button onClick={() => {
+              setIsProcessing(true)
+              fetch('/api/messages').then(r => r.json()).then(data => {
+                if (data.success && data.data) {
+                  setMessages(data.data.map((m: any) => ({
+                    role: m.source === 'user' ? 'user' : 'assistant',
+                    text: m.content || '',
+                    status: 'success'
+                  })))
+                }
+              }).finally(() => setIsProcessing(false))
+            }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shadow-sm border border-border/50">
+              <RotateCcw size={12} className={isProcessing ? "animate-spin" : ""} />
+              <span>同步</span>
+            </button>
+            {messages.length > 0 && (
+              <button onClick={clearChat} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/80 text-xs font-medium text-muted-foreground hover:text-red-400 hover:bg-secondary transition-all shadow-sm border border-border/50">
+                <Trash2 size={12} />
+                <span>清空</span>
+              </button>
+            )}
+          </div>
 
-      {/* Input area */}
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={messages.length === 0 ? "试说「记一下明天开会」或「帮我发个投票...」" : "继续对话或补充说明..."}
-            disabled={isProcessing || isRecording}
-            className="w-full bg-background border border-border/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-          />
+          <div className="flex-1 relative bg-secondary/30 border border-border/50 rounded-3xl shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all flex items-center min-h-[56px] pl-4 pr-1">
+            <textarea
+              value={input}
+              onChange={e => {
+                setInput(e.target.value);
+                e.target.style.height = 'auto'; // Reset height
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'; // Expand up to 150px
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                  e.currentTarget.style.height = 'auto';
+                }
+              }}
+              placeholder="给 Magic Ball 发送消息..."
+              disabled={isProcessing || isRecording}
+              className="flex-1 bg-transparent border-none py-4 text-[15px] outline-none disabled:opacity-50 resize-none max-h-[150px] min-h-[24px] overflow-y-auto scrollbar-hide"
+              rows={1}
+            />
+            {input.trim() ? (
+              <Button
+                onClick={() => handleSend()}
+                disabled={isProcessing}
+                size="icon"
+                className="rounded-full h-10 w-10 shrink-0 ml-2 animate-in zoom-in duration-200"
+              >
+                <Send size={18} />
+              </Button>
+            ) : (
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+                className={cn(
+                  "h-10 w-10 shrink-0 ml-2 rounded-full flex items-center justify-center transition-all",
+                  isRecording
+                    ? "bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                    : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-secondary"
+                )}
+              >
+                {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={20} />}
+              </button>
+            )}
+          </div>
         </div>
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isProcessing}
-          className={cn(
-            "h-[56px] w-[56px] flex items-center justify-center rounded-xl border transition-all shrink-0",
-            isRecording
-              ? "bg-red-500/10 border-red-500/30 text-red-400 ring-2 ring-red-500/20 animate-pulse"
-              : "bg-background border-border/50 text-muted-foreground hover:text-primary hover:border-primary/20"
-          )}
-        >
-          {isRecording ? <Square size={24} /> : <Mic size={24} />}
-        </button>
-        <Button
-          onClick={() => handleSend()}
-          disabled={!input.trim() || isProcessing}
-          size="icon"
-          className="rounded-xl h-[56px] w-[56px] shrink-0"
-        >
-          <Send size={24} />
-        </Button>
+        <div className="text-center mt-2.5">
+          <p className="text-[10px] text-muted-foreground/60 w-full text-center">
+            AI 可能会犯错，复杂的自动化任务请在大屏幕上检查运行结果。
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -455,6 +571,7 @@ function AICommandCenter() {
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then((d: any) => {
@@ -467,8 +584,7 @@ export default function Home() {
     if (isAuthenticated !== true) return
     const checkTriggers = async () => {
       try {
-        const res = await fetch('/api/scheduler/trigger', { method: 'POST' })
-        // Execution results are now pushed to Feishu on the backend
+        await fetch('/api/scheduler/trigger', { method: 'POST' })
       } catch { }
     }
     checkTriggers() // initial check
@@ -476,147 +592,66 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [isAuthenticated])
 
+  if (isAuthenticated === null) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto h-full animate-in fade-in zoom-in-95 duration-500">
-      {/* Hero Header */}
-      <div className="relative pt-6 pb-2">
-        <div className="absolute -top-10 -left-10 w-48 h-48 bg-primary/20 rounded-full blur-3xl" />
-        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight relative z-10">
-          欢迎来到 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50">Magic Ball</span>
-        </h1>
-        <p className="text-muted-foreground mt-3 text-lg md:text-xl font-medium relative z-10 max-w-xl">
-          你个人的、高度可扩展的全能效率工具主控台。
-        </p>
-      </div>
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Dynamic Background Blob */}
+      <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* AI Command Center */}
-      {isAuthenticated && <AICommandCenter />}
+      {isAuthenticated && (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          setIsOpen={setIsSidebarOpen}
+          setIsAuthenticated={setIsAuthenticated}
+        />
+      )}
 
-      {/* Tool cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
-        <Link href="/tools/ideas" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <Zap className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
+      <main className="flex-1 flex flex-col min-w-0 h-full relative z-10">
+        {/* Mobile Header */}
+        {isAuthenticated && (
+          <div className="md:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background/80 backdrop-blur-xl z-20">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+                <Sparkles size={14} className="text-primary" />
               </div>
-              <CardTitle className="text-xl font-semibold mt-4">闪念笔记</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                极速无感知的多媒体随身便签。支持 #标签 提取、语音录制和图片上传，数据完全本地私有化。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+              <span className="font-bold tracking-tight text-base">Magic Ball</span>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)} className="rounded-full">
+              <Menu size={20} />
+            </Button>
+          </div>
+        )}
 
-        <Link href="/tools/polls" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <Vote className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-              </div>
-              <CardTitle className="text-xl font-semibold mt-4">投票收集</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                创建单选、多选或意见征集投票，生成链接发给参与者即可匿名投票。支持访问码保护与防刷票机制。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/tools/scheduler" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <Calendar className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-              </div>
-              <CardTitle className="text-xl font-semibold mt-4">日程调度</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                创建定时或重复任务，自动执行操作或触发 AI。支持语音创建和智能时间识别。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* External API Placeholder */}
-        <Link href="/tools/api" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <Link2 className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-              </div>
-              <CardTitle className="text-xl font-semibold mt-4">外部功能接口</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                (建设中) 未来将在此处集成各类外部系统 API 及自动化流网关入口。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* System Settings */}
-        <Link href="/settings" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <Settings className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-              </div>
-              <CardTitle className="text-xl font-semibold mt-4">系统设置</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                管理您的开发者密钥、飞书机器人绑定配置，或是作为系统管理员重置用户密码。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* Help Center */}
-        <Link href="/help" className="block outline-none border-none">
-          <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-500 hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)] cursor-pointer h-full">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="flex flex-col pb-2 relative z-10">
-              <div className="flex items-start justify-between">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-500">
-                  <BookOpen className="h-6 w-6" />
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
-              </div>
-              <CardTitle className="text-xl font-semibold mt-4">使用帮助</CardTitle>
-            </CardHeader>
-            <CardContent className="relative z-10 hidden sm:block">
-              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
-                详细了解 Magic Ball 的注册机制、飞书绑定、AI 指令格式及各项高级功能说明。
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-    </div >
+        {isAuthenticated ? (
+          <AICommandCenter />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto p-6 text-center animate-in fade-in zoom-in-95 duration-500">
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">
+              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-20" />
+              <Sparkles size={40} className="text-primary" />
+            </div>
+            <h1 className="text-4xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/70">
+              Magic Ball
+            </h1>
+            <p className="text-lg text-muted-foreground mb-8">
+              你个人的、高度可扩展的全能效率工具主控台。
+            </p>
+            <Link href="/settings" className="w-full">
+              <Button size="lg" className="w-full rounded-2xl h-14 text-base font-medium shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
+                配置密钥进入系统 <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </Link>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
