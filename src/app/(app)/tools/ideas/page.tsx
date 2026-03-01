@@ -24,6 +24,42 @@ const pickSupportedAudioMimeType = (): string | undefined => {
     return undefined
 }
 
+const compressImageToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            if (typeof reader.result !== 'string') {
+                reject(new Error('invalid image data'))
+                return
+            }
+
+            const img = new Image()
+            img.onload = () => {
+                const maxSize = 1600
+                const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+                const width = Math.max(1, Math.round(img.width * scale))
+                const height = Math.max(1, Math.round(img.height * scale))
+
+                const canvas = document.createElement('canvas')
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    reject(new Error('canvas unavailable'))
+                    return
+                }
+
+                ctx.drawImage(img, 0, 0, width, height)
+                resolve(canvas.toDataURL('image/jpeg', 0.82))
+            }
+            img.onerror = () => reject(new Error('image decode failed'))
+            img.src = reader.result
+        }
+        reader.onerror = () => reject(new Error('file read failed'))
+        reader.readAsDataURL(file)
+    })
+}
+
 function IdeaCard({ idea }: { idea: Idea }) {
     const { removeIdea } = useIdeasStore()
     const [isDeleting, setIsDeleting] = useState(false)
@@ -198,13 +234,14 @@ export default function IdeasPage() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
-        const reader = new FileReader()
-        reader.readAsDataURL(file)
-        reader.onloadend = () => {
-            if (typeof reader.result === 'string') {
-                addIdea('image', reader.result)
-            }
-        }
+        compressImageToDataUrl(file)
+            .then((dataUrl) => {
+                addIdea('image', dataUrl)
+            })
+            .catch((err) => {
+                console.error("Image processing failed", err)
+                alert("图片处理失败，请重试。")
+            })
         // reset input
         e.target.value = ''
     }

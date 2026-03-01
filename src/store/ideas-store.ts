@@ -53,13 +53,40 @@ export const useIdeasStore = create<IdeasState>()(
                         const data: any = await res.json()
                         if (data.success && data.data) {
                             // Normalize tags: API may return string or array
-                            const normalized = data.data.map((idea: any) => ({
+                            const remoteIdeas = data.data.map((idea: any) => ({
                                 ...idea,
                                 tags: Array.isArray(idea.tags) ? idea.tags
                                     : typeof idea.tags === 'string' ? (() => { try { const p = JSON.parse(idea.tags); return Array.isArray(p) ? p : []; } catch { return []; } })()
                                         : []
                             }))
-                            set({ ideas: normalized })
+
+                            // Keep local-only ideas and retry uploading them.
+                            const localIdeas = get().ideas
+                            const remoteIdSet = new Set(remoteIdeas.map((i: Idea) => i.id))
+                            const localOnly = localIdeas.filter((i) => !remoteIdSet.has(i.id))
+
+                            const uploadedLocal: Idea[] = []
+                            const failedLocal: Idea[] = []
+                            for (const item of localOnly) {
+                                try {
+                                    const uploadRes = await fetch('/api/ideas', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(item)
+                                    })
+                                    if (uploadRes.ok) {
+                                        uploadedLocal.push(item)
+                                    } else {
+                                        failedLocal.push(item)
+                                    }
+                                } catch {
+                                    failedLocal.push(item)
+                                }
+                            }
+
+                            const merged = [...remoteIdeas, ...uploadedLocal, ...failedLocal]
+                            merged.sort((a, b) => b.createdAt - a.createdAt)
+                            set({ ideas: merged })
                         }
                     }
                 } catch (err) {
