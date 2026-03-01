@@ -51,6 +51,8 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [historyLimit, setHistoryLimit] = useState(50)
+  const [historyWarnThreshold, setHistoryWarnThreshold] = useState(80)
   const [sessions, setSessions] = useState<any[]>([])
   const [showSessions, setShowSessions] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -60,6 +62,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const imageInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const warnedSessionsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -102,6 +105,19 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     const stableMessages = messages.filter(m => m.status !== 'pending')
     localStorage.setItem(getSessionCacheKey(sessionId), JSON.stringify(stableMessages))
   }, [messages, sessionId])
+
+  useEffect(() => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data: any) => {
+        if (!data?.success || !data?.data) return
+        const rawLimit = Number(data.data.chat_history_limit)
+        const rawWarn = Number(data.data.chat_history_warn_threshold)
+        if (Number.isFinite(rawLimit) && rawLimit > 0) setHistoryLimit(Math.floor(rawLimit))
+        if (Number.isFinite(rawWarn) && rawWarn > 0) setHistoryWarnThreshold(Math.floor(rawWarn))
+      })
+      .catch(() => { })
+  }, [])
 
   const loadSessions = () => {
     fetch('/api/messages/sessions', { cache: 'no-store' }).then(r => r.json()).then(data => {
@@ -224,8 +240,9 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   }
 
   const buildApiMessages = (history: ChatMessage[], newUserText?: string) => {
+    const slicedHistory = history.slice(-Math.max(1, historyLimit))
     const apiMessages: { role: string; text: string }[] = []
-    for (const m of history) {
+    for (const m of slicedHistory) {
       if (m.role === 'user') {
         apiMessages.push({ role: 'user', text: m.text })
       } else {
@@ -236,6 +253,15 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     }
     if (newUserText) apiMessages.push({ role: 'user', text: newUserText })
     return apiMessages
+  }
+
+  const maybeShowHistoryWarning = (messageCount: number) => {
+    if (historyWarnThreshold <= 0) return
+    if (messageCount <= historyWarnThreshold) return
+    if (warnedSessionsRef.current.has(sessionId)) return
+
+    warnedSessionsRef.current.add(sessionId)
+    addAssistantMessage(`提示：当前会话已超过 ${historyWarnThreshold} 条消息。为保证速度与稳定性，AI 仅携带最近 ${historyLimit} 条上下文。`, 'success')
   }
 
   const callAI = async (
@@ -314,6 +340,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     const userMsg: ChatMessage = { role: 'user', text: '🎤 识别中...' }
     const streamMsg: ChatMessage = { role: 'assistant', text: '', status: 'pending' }
     const newHistory = [...messages, userMsg]
+    maybeShowHistoryWarning(newHistory.length)
     setMessages([...newHistory, streamMsg])
 
     try {
@@ -446,6 +473,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
     const userMsg: ChatMessage = { role: 'user', text: displayText }
     const newHistory = [...messages, userMsg]
+    maybeShowHistoryWarning(newHistory.length)
     setMessages(newHistory)
     setIsProcessing(true)
 

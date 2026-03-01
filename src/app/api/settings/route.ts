@@ -7,9 +7,14 @@ import { eq, and } from 'drizzle-orm';
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 const ADMIN_EMAIL = 'meshnet@163.com';
+const ADMIN_ONLY_SETTING_KEYS = new Set([
+    'chat_history_limit',
+    'chat_history_warn_threshold',
+]);
 
 // Keys that are global to the entire system
 const isGlobalSystemKey = (key: string) => key.endsWith('_api_key') || key.endsWith('_secret');
+const isAdminOnlyKey = (key: string) => isGlobalSystemKey(key) || ADMIN_ONLY_SETTING_KEYS.has(key);
 
 // GET: Fetch all settings for the current user
 export async function GET(request: Request) {
@@ -36,9 +41,18 @@ export async function GET(request: Request) {
             }
         });
 
-        // Admin needs to see all.
-        // If non-admin needs global settings like 'system_model' we would fetch it from Admin's row here, 
-        // but currently we handle API key lookup dynamically in the execution phase.
+        // Expose selected global runtime settings to all users from admin row.
+        if (!isAdmin) {
+            const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
+            if (adminUser) {
+                const adminSettings = await db.select().from(userSettings).where(eq(userSettings.userId, adminUser.id));
+                for (const s of adminSettings) {
+                    if (ADMIN_ONLY_SETTING_KEYS.has(s.key)) {
+                        settingsMap[s.key] = s.value;
+                    }
+                }
+            }
+        }
 
         return NextResponse.json({ success: true, data: settingsMap, isAdmin, userId });
     } catch (error: any) {
@@ -63,7 +77,7 @@ export async function POST(request: Request) {
         const user = await db.select().from(users).where(eq(users.id, userId)).get();
         const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL;
 
-        if (isGlobalSystemKey(body.key) && !isAdmin) {
+        if (isAdminOnlyKey(body.key) && !isAdmin) {
             return NextResponse.json({ success: false, error: 'Only administrators can modify system-wide API keys.' }, { status: 403 });
         }
 

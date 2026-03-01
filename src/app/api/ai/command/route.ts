@@ -20,12 +20,12 @@ export async function POST(request: Request) {
         const { users } = await import('@/db/schema');
         const adminUser = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).get();
         let apiKey, model = 'gemini-2.0-flash';
+        const settingsMap: Record<string, string> = {};
 
         if (adminUser) {
             const adminSettings = await db.select().from(userSettings)
                 .where(eq(userSettings.userId, adminUser.id));
 
-            const settingsMap: Record<string, string> = {};
             adminSettings.forEach(s => { settingsMap[s.key] = s.value; });
 
             apiKey = settingsMap['gemini_api_key'];
@@ -45,9 +45,11 @@ export async function POST(request: Request) {
         }
 
         const body: any = await request.json();
-        const messages: { role: string; text: string }[] = body.messages;
+        const messagesInput: { role: string; text: string }[] = body.messages;
         const audioBase64: string | undefined = body.audio;
         const imageInput: { data: string; mimeType?: string } | undefined = body.image;
+        const historyLimit = Number(settingsMap['chat_history_limit']) > 0 ? Number(settingsMap['chat_history_limit']) : 50;
+        const messages = (messagesInput || []).slice(-historyLimit);
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ success: false, error: '请输入指令' }, { status: 400 });

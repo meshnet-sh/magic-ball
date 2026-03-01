@@ -27,6 +27,8 @@ export default function SettingsPage() {
     // AI Settings state
     const [geminiKey, setGeminiKey] = useState("")
     const [geminiModel, setGeminiModel] = useState("gemini-flash-latest")
+    const [chatHistoryLimit, setChatHistoryLimit] = useState("50")
+    const [chatHistoryWarnThreshold, setChatHistoryWarnThreshold] = useState("80")
     const [feishuOpenId, setFeishuOpenId] = useState("")
     const [showKey, setShowKey] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -75,6 +77,8 @@ export default function SettingsPage() {
                 setIsAdmin(data.isAdmin || false)
                 if (data.data.gemini_api_key) setGeminiKey(data.data.gemini_api_key)
                 if (data.data.gemini_model) setGeminiModel(data.data.gemini_model)
+                if (data.data.chat_history_limit) setChatHistoryLimit(String(data.data.chat_history_limit))
+                if (data.data.chat_history_warn_threshold) setChatHistoryWarnThreshold(String(data.data.chat_history_warn_threshold))
                 if (data.data.feishu_open_id) setFeishuOpenId(data.data.feishu_open_id)
                 if (data.data.integrations) {
                     try {
@@ -99,6 +103,8 @@ export default function SettingsPage() {
             if (isAdmin) {
                 await saveSetting("gemini_api_key", geminiKey)
                 await saveSetting("gemini_model", geminiModel)
+                await saveSetting("chat_history_limit", chatHistoryLimit || "50")
+                await saveSetting("chat_history_warn_threshold", chatHistoryWarnThreshold || "80")
             }
             // Integrations are now per-user
             await saveSetting("integrations", JSON.stringify({
@@ -216,6 +222,36 @@ export default function SettingsPage() {
                                             <p className="text-[11px] text-muted-foreground mt-0.5">{m.desc}</p>
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {isAdmin && (
+                            <div className="space-y-3 p-3 rounded-xl border border-border/50 bg-secondary/20">
+                                <label className="text-sm font-medium">对话上下文窗口 (仅管理员)</label>
+                                <div className="space-y-2">
+                                    <label className="text-xs text-muted-foreground">最近多少条消息参与 AI 上下文</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={500}
+                                        value={chatHistoryLimit}
+                                        onChange={e => setChatHistoryLimit(e.target.value)}
+                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="50"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs text-muted-foreground">超过多少条时在聊天窗口提示</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={5000}
+                                        value={chatHistoryWarnThreshold}
+                                        onChange={e => setChatHistoryWarnThreshold(e.target.value)}
+                                        className="w-full bg-background border border-border/50 rounded-xl px-4 py-2.5 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/50"
+                                        placeholder="80"
+                                    />
                                 </div>
                             </div>
                         )}
