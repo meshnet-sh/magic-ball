@@ -6,6 +6,9 @@ import { eq, desc, and } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET: Fetch recent messages for the current user (filter by sessionId if provided)
 export async function GET(request: Request) {
     try {
