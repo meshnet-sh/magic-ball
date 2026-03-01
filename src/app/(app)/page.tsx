@@ -61,8 +61,13 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const audioChunksRef = useRef<Blob[]>([])
   const imageInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isProcessingRef = useRef(false)
   const router = useRouter()
   const warnedSessionsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    isProcessingRef.current = isProcessing
+  }, [isProcessing])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -70,6 +75,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   useEffect(() => {
     const loadMessages = () => {
+      if (isProcessingRef.current) return
       if (typeof window !== 'undefined') {
         const cached = localStorage.getItem(getSessionCacheKey(sessionId))
         if (cached) {
@@ -96,8 +102,18 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
     loadMessages()
 
+    const interval = window.setInterval(loadMessages, 15000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') loadMessages()
+    }
+
     window.addEventListener('scheduler_triggered', loadMessages)
-    return () => window.removeEventListener('scheduler_triggered', loadMessages)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('scheduler_triggered', loadMessages)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.clearInterval(interval)
+    }
   }, [sessionId])
 
   useEffect(() => {
@@ -826,6 +842,15 @@ export default function Home() {
       setIsAuthenticated(d.authenticated === true)
     }).catch(() => setIsAuthenticated(false))
   }, [])
+
+  useEffect(() => {
+    if (isAuthenticated !== true) return
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'active_chat_session_id', value: sessionId }),
+    }).catch(() => { })
+  }, [isAuthenticated, sessionId])
 
   // Client-side trigger polling — check for due tasks every 60s
   useEffect(() => {

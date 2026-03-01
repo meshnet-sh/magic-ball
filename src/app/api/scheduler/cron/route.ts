@@ -88,6 +88,12 @@ export async function GET(request: Request) {
 
             // Always persist to web chat first.
             try {
+                const activeSessionSetting = await db.select({
+                    value: userSettings.value,
+                }).from(userSettings)
+                    .where(and(eq(userSettings.userId, uId), eq(userSettings.key, 'active_chat_session_id')))
+                    .limit(1);
+
                 const latestMessage = await db.select({
                     sessionId: messages.sessionId,
                 }).from(messages)
@@ -95,7 +101,8 @@ export async function GET(request: Request) {
                     .orderBy(desc(messages.createdAt))
                     .limit(1);
 
-                const targetSessionId = latestMessage[0]?.sessionId || 'default';
+                const activeSessionId = activeSessionSetting[0]?.value?.trim();
+                const targetSessionId = activeSessionId || latestMessage[0]?.sessionId || 'default';
 
                 await db.insert(messages).values({
                     id: crypto.randomUUID(),
