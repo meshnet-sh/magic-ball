@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
 import { messages } from '@/db/schema';
-import { eq, desc, sql, and } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
 
 export async function GET(request: Request) {
@@ -13,18 +13,29 @@ export async function GET(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
 
-        // Fetch unique session IDs with latest message content and timestamp
-        // SQLite trick: GROUP BY + HAVING MAX() picks the correct row
-        const sessionsList = await db.select({
+        // Pull all messages (latest first) and keep the first row per session.
+        // This is deterministic and avoids brittle SQLite GROUP BY/HAVING behavior.
+        const rows = await db.select({
             sessionId: messages.sessionId,
             lastContent: messages.content,
             createdAt: messages.createdAt,
+            id: messages.id,
         }).from(messages)
-            .where(and(
-                eq(messages.userId, userId),
-                sql`${messages.id} IN (SELECT ${messages.id} FROM ${messages} WHERE ${messages.userId} = ${userId} GROUP BY ${messages.sessionId} HAVING MAX(${messages.createdAt}))`
-            ))
-            .orderBy(desc(messages.createdAt));
+            .where(eq(messages.userId, userId))
+            .orderBy(desc(messages.createdAt), desc(messages.id));
+
+        const seen = new Set<string>();
+        const sessionsList: Array<{ sessionId: string; lastContent: string; createdAt: number }> = [];
+
+        for (const row of rows) {
+            if (seen.has(row.sessionId)) continue;
+            seen.add(row.sessionId);
+            sessionsList.push({
+                sessionId: row.sessionId,
+                lastContent: row.lastContent,
+                createdAt: row.createdAt,
+            });
+        }
 
         return NextResponse.json({ success: true, data: sessionsList });
     } catch (error: any) {

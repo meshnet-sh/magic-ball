@@ -18,13 +18,13 @@ interface ChatMessage {
 }
 
 const MAX_RETRIES = 5
+const getSessionCacheKey = (sid: string) => `magic_ball_messages_${sid}`
 
 // Sidebar removed in favor of global AppLayout Sidebar.
 function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSessionId: (id: string) => void }) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const isLoadedRef = useRef(false)
   const [sessions, setSessions] = useState<any[]>([])
   const [showSessions, setShowSessions] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -39,13 +39,26 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
 
   useEffect(() => {
     const loadMessages = () => {
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(getSessionCacheKey(sessionId))
+        if (cached) {
+          try {
+            setMessages(JSON.parse(cached))
+          } catch { }
+        }
+      }
+
       fetch(`/api/messages?sessionId=${sessionId}`).then(r => r.json()).then(data => {
         if (data.success && data.data) {
-          setMessages(data.data.map((m: any) => ({
+          const nextMessages = data.data.map((m: any) => ({
             role: m.source === 'user' ? 'user' : 'assistant',
             text: m.content || '',
             status: 'success'
-          })))
+          }))
+          setMessages(nextMessages)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(getSessionCacheKey(sessionId), JSON.stringify(nextMessages))
+          }
         }
       }).catch(() => { })
     }
@@ -55,6 +68,12 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
     window.addEventListener('scheduler_triggered', loadMessages)
     return () => window.removeEventListener('scheduler_triggered', loadMessages)
   }, [sessionId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stableMessages = messages.filter(m => m.status !== 'pending')
+    localStorage.setItem(getSessionCacheKey(sessionId), JSON.stringify(stableMessages))
+  }, [messages, sessionId])
 
   const loadSessions = () => {
     fetch('/api/messages/sessions').then(r => r.json()).then(data => {
@@ -467,6 +486,7 @@ function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSe
   const createNewChat = () => {
     setMessages([])
     const newSid = crypto.randomUUID()
+    localStorage.setItem(getSessionCacheKey(newSid), JSON.stringify([]))
     localStorage.setItem('magic_ball_session_id', newSid)
     setSessionId(newSid)
   }
