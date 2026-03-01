@@ -13,8 +13,8 @@ export function Header() {
 
     // Quick breadcrumb generation
     const pageName = pathname === "/"
-        ? "Dashboard"
-        : pathname.split("/").pop()?.replace("-", " ") || "Dashboard"
+        ? "Magic Ball"
+        : pathname.split("/").pop()?.replace("-", " ") || "Magic Ball"
 
     return (
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background/60 backdrop-blur-xl px-4 md:px-6 sticky top-0 z-40">

@@ -20,12 +20,13 @@ interface ChatMessage {
 const MAX_RETRIES = 5
 
 // Sidebar removed in favor of global AppLayout Sidebar.
-function AICommandCenter() {
+function AICommandCenter({ sessionId, setSessionId }: { sessionId: string, setSessionId: (id: string) => void }) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const isLoadedRef = useRef(false)
-  const sessionIdRef = useRef<string>('default')
+  const [sessions, setSessions] = useState<any[]>([])
+  const [showSessions, setShowSessions] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -38,7 +39,7 @@ function AICommandCenter() {
 
   useEffect(() => {
     const loadMessages = () => {
-      fetch(`/api/messages?sessionId=${sessionIdRef.current}`).then(r => r.json()).then(data => {
+      fetch(`/api/messages?sessionId=${sessionId}`).then(r => r.json()).then(data => {
         if (data.success && data.data) {
           setMessages(data.data.map((m: any) => ({
             role: m.source === 'user' ? 'user' : 'assistant',
@@ -49,23 +50,22 @@ function AICommandCenter() {
       }).catch(() => { })
     }
 
-    if (!isLoadedRef.current) {
-      isLoadedRef.current = true
-
-      // Load or generate session ID
-      let sid = localStorage.getItem('magic_ball_session_id')
-      if (!sid) {
-        sid = crypto.randomUUID()
-        localStorage.setItem('magic_ball_session_id', sid)
-      }
-      sessionIdRef.current = sid
-
-      loadMessages()
-    }
+    loadMessages()
 
     window.addEventListener('scheduler_triggered', loadMessages)
     return () => window.removeEventListener('scheduler_triggered', loadMessages)
-  }, [])
+  }, [sessionId])
+
+  useEffect(() => {
+    const loadSessions = () => {
+      fetch('/api/messages/sessions').then(r => r.json()).then(data => {
+        if (data.success && data.data) {
+          setSessions(data.data)
+        }
+      }).catch(() => { })
+    }
+    if (showSessions) loadSessions()
+  }, [showSessions])
 
   const silenceTimerRef = useRef<any>(null)
   const analyserCleanupRef = useRef<(() => void) | null>(null)
@@ -151,7 +151,7 @@ function AICommandCenter() {
       fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionIdRef.current })
+        body: JSON.stringify({ content: text, source: 'ai', sessionId: sessionId })
       }).catch(() => { })
     }
   }
@@ -379,7 +379,7 @@ function AICommandCenter() {
     fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: userText, source: 'user', sessionId: sessionIdRef.current })
+      body: JSON.stringify({ content: userText, source: 'user', sessionId: sessionId })
     }).catch(() => { })
 
     try {
@@ -444,9 +444,7 @@ function AICommandCenter() {
     setMessages([])
     const newSid = crypto.randomUUID()
     localStorage.setItem('magic_ball_session_id', newSid)
-    sessionIdRef.current = newSid
-    // Note: We deliberately don't delete DB messages here. They form the session history.
-    // A future update should add a generic "Chat History" sidebar to navigate sessions.
+    setSessionId(newSid)
   }
 
   return (
@@ -507,9 +505,21 @@ function AICommandCenter() {
       <div className="p-4 bg-background/80 backdrop-blur-xl border-t border-border/50 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="max-w-4xl mx-auto flex items-end gap-2 relative">
           <div className="absolute -top-10 left-2 flex items-center gap-2">
+            <button
+              onClick={() => setShowSessions(!showSessions)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm border",
+                showSessions
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary/80 text-muted-foreground hover:text-foreground hover:bg-secondary border-border/50"
+              )}
+            >
+              <BookOpen size={12} />
+              <span>历史</span>
+            </button>
             <button onClick={() => {
               setIsProcessing(true)
-              fetch('/api/messages').then(r => r.json()).then(data => {
+              fetch(`/api/messages?sessionId=${sessionId}`).then(r => r.json()).then(data => {
                 if (data.success && data.data) {
                   setMessages(data.data.map((m: any) => ({
                     role: m.source === 'user' ? 'user' : 'assistant',
@@ -529,6 +539,43 @@ function AICommandCenter() {
               </button>
             )}
           </div>
+
+          {showSessions && (
+            <div className="absolute bottom-full mb-12 left-0 w-64 max-h-[300px] overflow-y-auto bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-xl z-50 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="p-3 border-b border-border/50 flex items-center justify-between">
+                <span className="text-[13px] font-semibold">历史对话</span>
+                <button onClick={() => setShowSessions(false)}><X size={14} /></button>
+              </div>
+              <div className="p-1.5">
+                {sessions.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">暂无历史记录</div>
+                ) : (
+                  sessions.map((s: any) => (
+                    <button
+                      key={s.sessionId}
+                      onClick={() => {
+                        setSessionId(s.sessionId);
+                        localStorage.setItem('magic_ball_session_id', s.sessionId);
+                        setShowSessions(false);
+                      }}
+                      className={cn(
+                        "w-full text-left p-2.5 rounded-xl transition-all mb-1 group",
+                        s.sessionId === sessionId ? "bg-primary/10 border-primary/20" : "hover:bg-secondary/60"
+                      )}
+                    >
+                      <div className="text-[13px] font-medium truncate mb-0.5 group-hover:text-primary transition-colors">
+                        {s.lastContent || '空对话'}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground flex justify-between">
+                        <span>{s.sessionId.slice(0, 8)}...</span>
+                        <span>{new Date(s.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 relative bg-secondary/30 border border-border/50 rounded-3xl shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all flex items-center min-h-[56px] pl-4 pr-1">
             <textarea
@@ -587,6 +634,12 @@ function AICommandCenter() {
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [sessionId, setSessionId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('magic_ball_session_id') || 'default'
+    }
+    return 'default'
+  })
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then((d: any) => {
@@ -599,7 +652,11 @@ export default function Home() {
     if (isAuthenticated !== true) return
     const checkTriggers = async () => {
       try {
-        const res = await fetch('/api/scheduler/trigger', { method: 'POST' })
+        const res = await fetch('/api/scheduler/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        })
         const data = await res.json()
         if (data.success && data.triggered > 0) {
           window.dispatchEvent(new Event('scheduler_triggered'))
@@ -609,7 +666,7 @@ export default function Home() {
     checkTriggers() // initial check
     const interval = setInterval(checkTriggers, 60000)
     return () => clearInterval(interval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, sessionId])
 
   if (isAuthenticated === null) {
     return (
@@ -625,7 +682,7 @@ export default function Home() {
       <div className="fixed bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
       {isAuthenticated ? (
-        <AICommandCenter />
+        <AICommandCenter sessionId={sessionId} setSessionId={setSessionId} />
       ) : (
         <div className="flex flex-col items-center justify-center h-[70vh] max-w-md mx-auto p-6 text-center animate-in fade-in zoom-in-95 duration-500">
           <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">

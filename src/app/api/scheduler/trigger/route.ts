@@ -45,6 +45,12 @@ export async function POST(request: Request) {
         const db = getDb(env.DB);
         const now = Date.now();
 
+        let sessionId = 'default';
+        try {
+            const body: any = await request.clone().json();
+            if (body && body.sessionId) sessionId = body.sessionId;
+        } catch { }
+
         // Find all due active tasks
         const dueTasks = await db.select().from(scheduledTasks)
             .where(and(
@@ -105,6 +111,7 @@ export async function POST(request: Request) {
                 await db.insert(messages).values({
                     id: crypto.randomUUID(),
                     userId,
+                    sessionId,
                     content: notification,
                     source: 'system',
                     createdAt: Date.now()
