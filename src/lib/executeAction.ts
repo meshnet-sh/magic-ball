@@ -140,6 +140,11 @@ export async function executeAction(
     depth: number = 0
 ): Promise<ActionResult> {
     try {
+        const targetUser = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+        if (!targetUser) {
+            return { ok: false, message: `❌ 用户不存在或已失效: ${userId}` };
+        }
+
         switch (cmd.action) {
             case 'create_idea': {
                 const tags = cmd.tags || [];
