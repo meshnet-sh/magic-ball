@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
-import { scheduledTasks, ideas, userSettings } from '@/db/schema';
+import { scheduledTasks, ideas, userSettings, users } from '@/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
@@ -44,6 +44,10 @@ export async function POST(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
         const now = Date.now();
+        const user = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+        if (!user) {
+            return NextResponse.json({ success: false, error: 'Session invalid: user not found, please login again' }, { status: 401 });
+        }
 
         let sessionId = 'default';
         try {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db/index';
-import { messages, userSettings } from '@/db/schema';
+import { messages, userSettings, users } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
 import { getVerifiedUserIdFromCookie } from '@/lib/auth';
@@ -38,6 +38,10 @@ export async function POST(request: Request) {
         const { env } = await getCloudflareContext();
         const db = getDb(env.DB);
         const body: any = await request.json();
+        const user = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get();
+        if (!user) {
+            return NextResponse.json({ success: false, error: 'Session invalid: user not found, please login again' }, { status: 401 });
+        }
 
         // Save multiple messages at once if provided as an array
         const msgs = Array.isArray(body) ? body : [body];
